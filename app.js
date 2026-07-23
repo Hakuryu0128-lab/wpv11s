@@ -15,6 +15,11 @@
    v11.1.3：「PDFダウンロード」の文字が実機で欠けて見える不具合対策。html2canvasの
    scaleを2→3に、出力形式をJPEG→PNG（可逆圧縮）に変更。小さい日本語文字を
    JPEGの非可逆圧縮にかけると画線ににじみ・欠けが出やすいための対策（Mistakes M-13）。
+   v11.1.4：解像度実験としてhtml2canvasのscaleを3→5に引き上げ（紙幅PDF_PAGE_W_PXは
+   1040pxのまま据え置き＝デザイン基準は変えず純粋な解像度アップのみ）。
+   なお、タイトルが枠内で見切れる件の本質的な原因は解像度ではなく、教科名+学級
+   バッジ／タイトル／メモありタグの3要素が固定高さのセルに収まりきらない場合が
+   あるという設計上の余白不足。根本対策（メモありタグの配置見直し等）は別途未着手。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -22,7 +27,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.1.3';
+const APP_VERSION = '11.1.4';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -6078,7 +6083,7 @@ async function _pdfAddPage(pdf, pageEl, isFirst, opts = {}) {
   // 非可逆圧縮で、文字のようなくっきりした線の周りにリンギングノイズ（にじみ）が出やすく、
   // 細い画線が欠けて見える一因になっていた。scaleを引き上げ、可逆圧縮のPNGに変更することで
   // 解決する（実機での目視確認はできないため、原因分析に基づく対策として実施）。
-  const canvas = await window.html2canvas(pageEl, { scale: 3, backgroundColor: '#fff', useCORS: true, logging: false,
+  const canvas = await window.html2canvas(pageEl, { scale: 5, backgroundColor: '#fff', useCORS: true, logging: false,
     width: PDF_PAGE_W_PX, height: fullH, windowWidth: PDF_PAGE_W_PX, windowHeight: fullH });
   const img = canvas.toDataURL('image/png');
   const ratio = canvas.width / canvas.height;
