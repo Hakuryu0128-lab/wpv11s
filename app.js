@@ -12,6 +12,9 @@
    内容量次第で伸びてしまうため、実機(iPad/iPhone)で行がずれる・下段が消える等の
    再発があった。Gridなら行の高さが本当に固定される（詳細はMistakes M-11・
    Projects 2026-07-23参照）。
+   v11.1.3：「PDFダウンロード」の文字が実機で欠けて見える不具合対策。html2canvasの
+   scaleを2→3に、出力形式をJPEG→PNG（可逆圧縮）に変更。小さい日本語文字を
+   JPEGの非可逆圧縮にかけると画線ににじみ・欠けが出やすいための対策（Mistakes M-13）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -19,7 +22,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.1.2';
+const APP_VERSION = '11.1.3';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -6069,9 +6072,15 @@ async function _pdfAddPage(pdf, pageEl, isFirst, opts = {}) {
   await _pdfWaitImgs(pageEl);
   // 固定高さを超えた分（放課後など）が切り取られないよう、実コンテンツの全高を取り込む
   const fullH = opts.fixedH || Math.max(pageEl.scrollHeight, pageEl.offsetHeight);
-  const canvas = await window.html2canvas(pageEl, { scale: 2, backgroundColor: '#fff', useCORS: true, logging: false,
+  // v11.1.3：日本語の小さな文字（10〜11px）がPDFで「半分欠けたように」ぼやける不具合対策。
+  // 原因は2つ複合していた。①scale:2だと1040px幅のデザインを2080px幅でしかラスタライズせず、
+  // 画数の多い漢字を小さいサイズで描くには解像度が足りなかった。②JPEG圧縮は写真向けの
+  // 非可逆圧縮で、文字のようなくっきりした線の周りにリンギングノイズ（にじみ）が出やすく、
+  // 細い画線が欠けて見える一因になっていた。scaleを引き上げ、可逆圧縮のPNGに変更することで
+  // 解決する（実機での目視確認はできないため、原因分析に基づく対策として実施）。
+  const canvas = await window.html2canvas(pageEl, { scale: 3, backgroundColor: '#fff', useCORS: true, logging: false,
     width: PDF_PAGE_W_PX, height: fullH, windowWidth: PDF_PAGE_W_PX, windowHeight: fullH });
-  const img = canvas.toDataURL('image/jpeg', 0.92);
+  const img = canvas.toDataURL('image/png');
   const ratio = canvas.width / canvas.height;
   let w = PDF_CONTENT_W_MM, h = w / ratio;
   if (h > PDF_CONTENT_H_MM) { h = PDF_CONTENT_H_MM; w = h * ratio; }   // 1枚に収める
@@ -6079,7 +6088,7 @@ async function _pdfAddPage(pdf, pageEl, isFirst, opts = {}) {
   const x = PDF_A4.margin + (PDF_CONTENT_W_MM - w) / 2;
   const y = centerV ? PDF_A4.margin + (PDF_CONTENT_H_MM - h) / 2 : PDF_A4.margin;
   if (!isFirst) pdf.addPage();
-  pdf.addImage(img, 'JPEG', x, y, w, h);
+  pdf.addImage(img, 'PNG', x, y, w, h);
 }
 
 async function exportPdf() {
