@@ -7,6 +7,11 @@
    バージョン番号のルールは Decisions: 2026-07-23-v11-versioning-scheme
    （SemVer：PATCH=バグ修正のみ／MINOR=機能追加／MAJOR=土台の作り直し）。
    v11.1.0：印刷レイアウト改修（週案表の高さ安定化＋詳細メモの田の字4コマ化）。
+   v11.1.1：週案表の行事/昼行が崩れるバグ修正（<td>にdisplay:-webkit-box誤指定）。
+   v11.1.2：週案表を<table>からCSS Gridへ全面移行。テーブル行はheight指定しても
+   内容量次第で伸びてしまうため、実機(iPad/iPhone)で行がずれる・下段が消える等の
+   再発があった。Gridなら行の高さが本当に固定される（詳細はMistakes M-11・
+   Projects 2026-07-23参照）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -14,7 +19,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.1.1';
+const APP_VERSION = '11.1.2';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -5717,33 +5722,39 @@ const PRINT_COMPONENT_CSS = `
   .p-owner { font-size: 12.5px; color: #475569; text-align: right; line-height: 1.5; white-space: nowrap; }
   .p-owner .p-owner-name { font-size: 14.5px; font-weight: 700; color: #0f172a; }
   /* ── 週案表 ──
-     各行・各セルの高さはJS側（buildWeeklyPrintHtml）でインラインstyleとして
-     確定させる。内容量（学級名の長さ・メモ有無など）で行の高さが伸び縮みすると、
-     印刷/PDF化の際に用紙へ収めるための縮小率が毎回変わってしまい「高さが安定しない」
-     原因になる。中の内容が枠より多い場合はheight:100%+overflow:hiddenで
-     はみ出しを切る側に倒し、枠の高さを常に一定に保つ。 */
+     v11.1.2でテーブル(<table>)からCSS Gridへ全面移行。
+     理由：HTMLテーブルは<tr>/<td>にheightを指定しても「最低保証」でしかなく、
+     内容（長い学級名・長いタイトルなど）や端末のフォント幅次第で実際の行の高さが
+     勝手に伸びる。html2canvasによるPDF化は固定サイズの領域を切り取るため、
+     行が伸びた分だけ下にはみ出し、最後の行（放課後）ごと画面外に消える、
+     学級バッジやタイトルの位置がズレる、といった不具合が実機(iPad/iPhone)で
+     発生した（PC Chromeでの目視確認では内容が短く再現しなかった）。
+     CSS Gridの grid-template-rows は内容量に関わらず本当に固定される（詳細メモの
+     「田の字」レイアウトと同じ方式）ため、これを週案表にも採用する。
+     行の高さは.pw-grid側で一括指定し、各セルはheight指定不要（グリッドが自動で
+     トラック高さいっぱいに広げる）。はみ出す内容はセル自身のoverflow:hiddenで切る。 */
   .pw-sheet { display: flex; flex-direction: column; overflow: hidden; }
-  .pw-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed;
+  .pw-grid { display: grid; grid-template-columns: 8% repeat(5, 1fr);
     font-size: 12px; border: 1.5px solid #94a3b8; border-radius: 10px; overflow: hidden; }
-  .pw-table th, .pw-table td { border-right: 1px solid #d4dae3; border-bottom: 1px solid #d4dae3;
-    padding: 0; vertical-align: top; overflow: hidden; }
-  .pw-table tr > :last-child { border-right: none; }
-  .pw-table tbody tr:last-child > * { border-bottom: none; }
-  .pw-table thead th { background: linear-gradient(#f4f6fb, #e8edf5); font-weight: 800; color: #334155;
-    vertical-align: middle; text-align: center; border-bottom: 1.5px solid #94a3b8; overflow: hidden; }
-  .pw-corner { width: 8%; }
-  .pw-day-th .pw-dow { display: block; font-size: 15px; font-weight: 800; color: #1e293b; }
-  .pw-day-th .pw-date { display: block; font-size: 10.5px; color: #64748b; font-weight: 600; margin-top: 1px; }
-  /* 時限ラベル（1,2…）は上下左右とも中央。
-     html2canvasは table-cell の vertical-align:middle を正しく描画しないため、
-     内側のflexラッパーで確実に中央化する。 */
-  .pw-rowlabel { width: 8%; background: #f1f5f9; font-weight: 700; font-size: 12px; color: #334155;
-    vertical-align: middle; text-align: center; padding: 0; }
-  .pw-rl-in { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 100%; overflow: hidden; }
-  .pw-rowlabel .pw-pnum { display: block; font-size: 16px; font-weight: 800; color: #1e293b; }
-  .pw-rowlabel .pw-time { display: block; font-size: 9.5px; color: #94a3b8; font-weight: 500; margin-top: 1px; }
+  .pw-gc { border-right: 1px solid #d4dae3; border-bottom: 1px solid #d4dae3;
+    overflow: hidden; min-width: 0; min-height: 0; }
+  .pw-grid > .pw-gc:nth-child(6n) { border-right: none; }
+  .pw-grid > .pw-gc:nth-last-child(-n+6) { border-bottom: none; }
+  .pw-corner-h, .pw-day-h { background: linear-gradient(#f4f6fb, #e8edf5); border-bottom: 1.5px solid #94a3b8; }
+  .pw-day-h { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; font-weight: 800; color: #334155; }
+  .pw-day-h .pw-dow { display: block; font-size: 15px; font-weight: 800; color: #1e293b; }
+  .pw-day-h .pw-date { display: block; font-size: 10.5px; color: #64748b; font-weight: 600; margin-top: 1px; }
+  /* 時限ラベル（1,2…）・行事/昼/放課後ラベル：div自体をflexで上下左右中央に
+     （もうtable-cellではないのでvertical-align問題は起きない）。 */
+  .pw-rlabel { background: #f1f5f9; font-weight: 700; font-size: 12px; color: #334155;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .pw-rlabel .pw-pnum { display: block; font-size: 16px; font-weight: 800; color: #1e293b; }
+  .pw-rlabel .pw-time { display: block; font-size: 9.5px; color: #94a3b8; font-weight: 500; margin-top: 1px; }
+  .pw-rl-events, .pw-rl-after { background: #e2e8f0; color: #475569; }
+  .pw-rl-lunch { background: #fef3c7; color: #92400e; }
   /* 授業セル：教科＝左、クラス＝右、その下にタイトル（左寄せ・上から） */
-  .pw-cell-in { height: 100%; padding: 5px 7px; line-height: 1.35; text-align: left; overflow: hidden; }
+  .pw-lesson { padding: 5px 7px; line-height: 1.35; text-align: left; }
   /* align-items は center。baseline だと overflow:hidden を持つ .pw-subj の
      ベースラインが下端になり（Safari）、教科名とピルが縦ズレ・下半分が見切れる。 */
   .pw-cell-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 4px; min-width: 0; }
@@ -5759,17 +5770,11 @@ const PRINT_COMPONENT_CSS = `
   .pw-ttl  { margin-top: 4px; font-size: 11px; color: #1e293b;
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .pw-note-flag { margin-top: 3px; font-size: 9px; color: #94a3b8; }
-  /* 行事・昼・放課後（特殊行）— 十分な高さ＋上下左右中央
-     重要：<td>自体のdisplayは絶対にtable-cellから変えない（-webkit-boxやflexに
-     変更すると、そのセルがテーブルの列として扱われなくなり、月〜金のセルが
-     横に並ばず1本にまとまって見えるくずれ方をする。実際にこれで壊れたので、
-     クランプ等の見た目調整は必ず内側のdiv(.pw-special-in)側で行うこと）。 */
-  .pw-events .pw-rowlabel, .pw-lunch .pw-rowlabel, .pw-after .pw-rowlabel { background: #e2e8f0; color: #475569; }
-  .pw-special-cell { vertical-align: middle; text-align: left; overflow: hidden; }
-  .pw-special-in { padding: 5px 8px 5px 16px; font-size: 11px; color: #1e293b;
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-  .pw-lunch td, .pw-lunch th { background: #fffdf3; }
-  .pw-lunch .pw-rowlabel { background: #fef3c7; color: #92400e; }
+  /* 行事・昼・放課後（特殊行の日別セル）。もうtableではないので
+     display:-webkit-boxを付けても列崩壊は起きない（教訓はMistakes M-11参照）。 */
+  .pw-special { padding: 5px 8px 5px 16px; font-size: 11px; color: #1e293b;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .pw-special-lunch { background: #fffdf3; }
   /* 詳細メモ：A4横1枚を「田の字」＝2×2＝4コマで固定枠表示する。
      枠の高さは.pd-grid--quadの実寸(JSでインラインstyleにより確定)を
      grid-template-rows:1fr 1fr で均等分割し、各カードはheight:100%で
@@ -5855,13 +5860,15 @@ async function doPrint() {
   printDocument(html);
 }
 
-/* 週案表：A4横1枚に収まる時間割テーブル（HTMLを返す）。
+/* 週案表：A4横1枚に収まる時間割（HTMLを返す）。
    unit='px' … PDFダウンロード用（html2canvasが読む1040px幅のデザイン単位そのまま）
    unit='mm' … ブラウザ印刷(@page)用（実寸mm。PDF_PX_PER_MMで換算するので見た目の
                縦横比はPDF出力と常に一致する＝端末や出力経路が違っても仕上がりが揃う）
-   各行・各セルの高さはここで確定させ、内容量に関わらず総高さが常に一定になるように
-   する（内容量で行が伸びると、印刷/PDF化のたびに縮小率が変わって「高さが安定しない」
-   原因になっていたため。はみ出す分はCSS側のoverflow:hiddenで切る）。 */
+   v11.1.2：<table>をやめてCSS Grid（.pw-grid）に統一。行の高さは
+   grid-template-rowsに一括で渡すことで完全に固定される（テーブル行と違い、
+   内容量やフォント幅で勝手に伸びることがない＝実機での「下段消失・ズレ・見切れ」の
+   根本対策）。各セルはgridトラックの高さいっぱいに自動で広がるので、
+   セル側に高さ指定は不要。はみ出す内容はセル自身のoverflow:hiddenで切る。 */
 function buildWeeklyPrintHtml(unit = 'px') {
   const start = state.currentWeekStart;
   const periods = state.settings.periodsCount;
@@ -5875,63 +5882,79 @@ function buildWeeklyPrintHtml(unit = 'px') {
   const isMm = unit === 'mm';
   const toU = px => isMm ? +(px / PDF_PX_PER_MM).toFixed(2) : Math.round(px);
   const suf = isMm ? 'mm' : 'px';
-  const styleH = px => `height:${toU(px)}${suf}`;
-  const HEADER_H = 60, THEAD_H = 48, SPECIAL_H = 44;   // デザインpx（行事・昼・放課後は共通）
+  const HEADER_H = 60, THEAD_H = 48, SPECIAL_H = 48;   // デザインpx（行事・昼・放課後は共通）
   const fixedTotal = HEADER_H + THEAD_H + SPECIAL_H * 3; // 行事＋昼＋放課後の3行ぶん
-  const periodH = Math.max(46, (PDF_PAGE_H_PX - fixedTotal) / periods);
+  const periodH = Math.max(50, (PDF_PAGE_H_PX - fixedTotal) / periods);
   const sheetW = isMm ? PDF_CONTENT_W_MM : PDF_PAGE_W_PX;
   const sheetH = isMm ? PDF_CONTENT_H_MM : PDF_PAGE_H_PX;
 
-  // lesson cell
-  const cell = (date, period, hPx) => {
+  // 行の高さは出現順にrowHeightsへ積み、最後にgrid-template-rowsへまとめて渡す。
+  // セルは6個（ラベル1＋月〜金5）ずつ出現順に並べるだけで、grid-auto-flow:row（既定）が
+  // 自動で折り返してくれるので、行番号の管理は不要。
+  const rowHeights = [];
+  const cells = [];
+
+  // lesson cell（授業コマ／放課後コマ共通）
+  const lessonCell = (date, period) => {
     const l = state.lessons[lessonKey(date, period)];
-    const hStyle = styleH(hPx);
-    if (!l || !(l.subjectId || l.title || l.className)) return `<td class="pw-cell" style="${hStyle}"></td>`;
+    if (!l || !(l.subjectId || l.title || l.className)) return `<div class="pw-gc pw-lesson"></div>`;
     const subj = getSubjectById(l.subjectId)?.name || '';
     const color = getSubjectColor(l.subjectId);
     const hasNote = !!(l.note && l.note.trim());
-    return `<td class="pw-cell" style="${hStyle}; background:${hexA(color, 0.10)}; border-left:4px solid ${color}"><div class="pw-cell-in">
+    return `<div class="pw-gc pw-lesson" style="background:${hexA(color, 0.10)}; border-left:4px solid ${color}">
       <div class="pw-cell-head">
         <span class="pw-subj" style="color:${color}">${escHtml(subj)}</span>
         ${l.className ? `<span class="pw-cls">${escHtml(l.className)}</span>` : ''}
       </div>
       ${l.title ? `<div class="pw-ttl">${escHtml(l.title)}</div>` : ''}
       ${hasNote ? `<div class="pw-note-flag">✎ メモあり</div>` : ''}
-    </div></td>`;
+    </div>`;
   };
 
-  // header row
-  const headCells = days.map((date, d) =>
-    `<th class="pw-day-th" style="${styleH(THEAD_H)}"><span class="pw-dow">${DAYS[d]}</span><span class="pw-date">${date.getMonth()+1}/${date.getDate()}</span></th>`
-  ).join('');
+  // header row（角＋曜日・日付）
+  rowHeights.push(THEAD_H);
+  cells.push(`<div class="pw-gc pw-corner-h"></div>`);
+  days.forEach((date, d) => {
+    cells.push(`<div class="pw-gc pw-day-h"><span class="pw-dow">${DAYS[d]}</span><span class="pw-date">${date.getMonth()+1}/${date.getDate()}</span></div>`);
+  });
 
-  // events row
-  const eventCells = days.map(date => {
+  // events row（行事）
+  rowHeights.push(SPECIAL_H);
+  cells.push(`<div class="pw-gc pw-rlabel pw-rl-events">行事</div>`);
+  days.forEach(date => {
     const mk = monthKeyOf(date);
     const dayMap = (state.events[mk] && !Array.isArray(state.events[mk])) ? state.events[mk] : {};
     const txt = dayMap[date.getDate()] || '';
-    return `<td class="pw-special-cell" style="${styleH(SPECIAL_H)}"><div class="pw-special-in">${escHtml(txt)}</div></td>`;
-  }).join('');
+    cells.push(`<div class="pw-gc pw-special">${escHtml(txt)}</div>`);
+  });
 
-  let body = `<tr class="pw-events" style="${styleH(SPECIAL_H)}"><th class="pw-rowlabel" style="${styleH(SPECIAL_H)}"><div class="pw-rl-in">行事</div></th>${eventCells}</tr>`;
+  // 各時限（＋lunchAfter直後に昼を挿入）
   for (let p = 1; p <= periods; p++) {
-    const cells = days.map(date => cell(date, p, periodH)).join('');
+    rowHeights.push(periodH);
     const time = times[p-1] ? `<span class="pw-time">${escHtml(times[p-1])}</span>` : '';
-    body += `<tr class="pw-period" style="${styleH(periodH)}"><th class="pw-rowlabel" style="${styleH(periodH)}"><div class="pw-rl-in"><span class="pw-pnum">${p}</span>${time}</div></th>${cells}</tr>`;
+    cells.push(`<div class="pw-gc pw-rlabel"><span class="pw-pnum">${p}</span>${time}</div>`);
+    days.forEach(date => cells.push(lessonCell(date, p)));
+
     if (p === lunchAfter) {
-      const lunchCells = days.map(date => `<td class="pw-special-cell" style="${styleH(SPECIAL_H)}"><div class="pw-special-in">${escHtml(state.lunch[formatDate(date)] || '')}</div></td>`).join('');
-      body += `<tr class="pw-lunch" style="${styleH(SPECIAL_H)}"><th class="pw-rowlabel" style="${styleH(SPECIAL_H)}"><div class="pw-rl-in">昼</div></th>${lunchCells}</tr>`;
+      rowHeights.push(SPECIAL_H);
+      cells.push(`<div class="pw-gc pw-rlabel pw-rl-lunch">昼</div>`);
+      days.forEach(date => {
+        const txt = state.lunch[formatDate(date)] || '';
+        cells.push(`<div class="pw-gc pw-special pw-special-lunch">${escHtml(txt)}</div>`);
+      });
     }
   }
-  const afterCells = days.map(date => cell(date, 'after', SPECIAL_H)).join('');
-  body += `<tr class="pw-after" style="${styleH(SPECIAL_H)}"><th class="pw-rowlabel" style="${styleH(SPECIAL_H)}"><div class="pw-rl-in">放課後</div></th>${afterCells}</tr>`;
 
-  return `<div class="pw-sheet" style="width:${toU(sheetW)}${suf}; height:${toU(sheetH)}${suf}">` + printHeaderHtml('週案表', HEADER_H, suf, toU) + `
-    <table class="pw-table">
-      <colgroup><col class="pw-corner"><col><col><col><col><col></colgroup>
-      <thead><tr><th class="pw-corner" style="${styleH(THEAD_H)}"></th>${headCells}</tr></thead>
-      <tbody>${body}</tbody>
-    </table></div>`;
+  // after row（放課後）
+  rowHeights.push(SPECIAL_H);
+  cells.push(`<div class="pw-gc pw-rlabel pw-rl-after">放課後</div>`);
+  days.forEach(date => cells.push(lessonCell(date, 'after')));
+
+  const rowsTemplate = rowHeights.map(h => `${toU(h)}${suf}`).join(' ');
+
+  return `<div class="pw-sheet" style="width:${toU(sheetW)}${suf}; height:${toU(sheetH)}${suf}">` +
+    printHeaderHtml('週案表', HEADER_H, suf, toU) +
+    `<div class="pw-grid" style="grid-template-rows:${rowsTemplate}">${cells.join('')}</div></div>`;
 }
 
 /* 詳細メモ：その週の登録済みコマを1枚ずつのカードHTML（配列）にして返す。
