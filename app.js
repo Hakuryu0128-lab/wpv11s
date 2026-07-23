@@ -14,7 +14,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.1.0';
+const APP_VERSION = '11.1.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -5759,11 +5759,15 @@ const PRINT_COMPONENT_CSS = `
   .pw-ttl  { margin-top: 4px; font-size: 11px; color: #1e293b;
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .pw-note-flag { margin-top: 3px; font-size: 9px; color: #94a3b8; }
-  /* 行事・昼・放課後（特殊行）— 十分な高さ＋上下左右中央 */
+  /* 行事・昼・放課後（特殊行）— 十分な高さ＋上下左右中央
+     重要：<td>自体のdisplayは絶対にtable-cellから変えない（-webkit-boxやflexに
+     変更すると、そのセルがテーブルの列として扱われなくなり、月〜金のセルが
+     横に並ばず1本にまとまって見えるくずれ方をする。実際にこれで壊れたので、
+     クランプ等の見た目調整は必ず内側のdiv(.pw-special-in)側で行うこと）。 */
   .pw-events .pw-rowlabel, .pw-lunch .pw-rowlabel, .pw-after .pw-rowlabel { background: #e2e8f0; color: #475569; }
-  .pw-special-cell { height: 100%; padding: 5px 8px 5px 16px; font-size: 11px; color: #1e293b; text-align: left;
-    overflow: hidden;
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; -webkit-box-align: center; }
+  .pw-special-cell { vertical-align: middle; text-align: left; overflow: hidden; }
+  .pw-special-in { padding: 5px 8px 5px 16px; font-size: 11px; color: #1e293b;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .pw-lunch td, .pw-lunch th { background: #fffdf3; }
   .pw-lunch .pw-rowlabel { background: #fef3c7; color: #92400e; }
   /* 詳細メモ：A4横1枚を「田の字」＝2×2＝4コマで固定枠表示する。
@@ -5906,7 +5910,7 @@ function buildWeeklyPrintHtml(unit = 'px') {
     const mk = monthKeyOf(date);
     const dayMap = (state.events[mk] && !Array.isArray(state.events[mk])) ? state.events[mk] : {};
     const txt = dayMap[date.getDate()] || '';
-    return `<td class="pw-special-cell" style="${styleH(SPECIAL_H)}">${escHtml(txt)}</td>`;
+    return `<td class="pw-special-cell" style="${styleH(SPECIAL_H)}"><div class="pw-special-in">${escHtml(txt)}</div></td>`;
   }).join('');
 
   let body = `<tr class="pw-events" style="${styleH(SPECIAL_H)}"><th class="pw-rowlabel" style="${styleH(SPECIAL_H)}"><div class="pw-rl-in">行事</div></th>${eventCells}</tr>`;
@@ -5915,7 +5919,7 @@ function buildWeeklyPrintHtml(unit = 'px') {
     const time = times[p-1] ? `<span class="pw-time">${escHtml(times[p-1])}</span>` : '';
     body += `<tr class="pw-period" style="${styleH(periodH)}"><th class="pw-rowlabel" style="${styleH(periodH)}"><div class="pw-rl-in"><span class="pw-pnum">${p}</span>${time}</div></th>${cells}</tr>`;
     if (p === lunchAfter) {
-      const lunchCells = days.map(date => `<td class="pw-special-cell" style="${styleH(SPECIAL_H)}">${escHtml(state.lunch[formatDate(date)] || '')}</td>`).join('');
+      const lunchCells = days.map(date => `<td class="pw-special-cell" style="${styleH(SPECIAL_H)}"><div class="pw-special-in">${escHtml(state.lunch[formatDate(date)] || '')}</div></td>`).join('');
       body += `<tr class="pw-lunch" style="${styleH(SPECIAL_H)}"><th class="pw-rowlabel" style="${styleH(SPECIAL_H)}"><div class="pw-rl-in">昼</div></th>${lunchCells}</tr>`;
     }
   }
