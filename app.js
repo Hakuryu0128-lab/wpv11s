@@ -1,9 +1,12 @@
 /* ═══════════════════════════════════════════════════════════
-   WEEKY v11.0.0 — Application Logic
+   WEEKY v11.1.0 — Application Logic
    v10系からフォークした次世代版。最大の違い＝テキストデータ(state)の
    永続化を localStorage(5MB上限) から IndexedDB へ全面移行（写真・手書き
    と同じ仕組み）。詳細は Notion Decisions: 2026-06-24-next-gen-in-subfolder
    / 2026-07-17-v11-state-to-indexeddb を参照。
+   バージョン番号のルールは Decisions: 2026-07-23-v11-versioning-scheme
+   （SemVer：PATCH=バグ修正のみ／MINOR=機能追加／MAJOR=土台の作り直し）。
+   v11.1.0：印刷レイアウト改修（週案表の高さ安定化＋詳細メモの田の字4コマ化）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -11,7 +14,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.0.0';
+const APP_VERSION = '11.1.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -5684,14 +5687,17 @@ function updatePrintWeekRange() {
   el.textContent = `${s.getFullYear()}年 ${fmt(s)}（月）〜 ${fmt(addDays(s,4))}（金）`;
 }
 
-/* Shared print header: title (week range) + owner (teacher / school) */
-function printHeaderHtml(title) {
+/* Shared print header: title (week range) + owner (teacher / school).
+   hPx/suf/toU を渡すと固定高さ(overflow:hidden)にする（週案表用。総高さを常に一定に
+   保つため）。省略時（詳細メモ用）は従来どおり自然な高さのまま。 */
+function printHeaderHtml(title, hPx, suf, toU) {
   const s = state.currentWeekStart;
   const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
   const range = `${s.getFullYear()}年 ${fmt(s)}（月）〜 ${fmt(addDays(s,4))}（金）`;
   const name = state.settings.teacherName || '';
   const school = state.settings.schoolName || '';
-  return `<div class="p-header">
+  const style = hPx ? ` style="height:${toU(hPx)}${suf}"` : '';
+  return `<div class="p-header"${style}>
     <div class="p-title">${escHtml(title)}　${range}</div>
     <div class="p-owner">${name ? `<span class="p-owner-name">${escHtml(name)}</span><br>` : ''}${escHtml(school)}</div>
   </div>`;
@@ -5700,21 +5706,31 @@ function printHeaderHtml(title) {
 /* 印刷・PDF共通のコンポーネントCSS（html/body や @page は含めない＝
    PDF生成時にページへ注入しても本体のbodyを壊さない）。 */
 const PRINT_COMPONENT_CSS = `
+  /* box-sizing の既定を統一。印刷iframe(PRINT_CSS)だけでなくPDFホストにも効かせる必要が
+     あるため、共通CSSであるこちらに置く（片方だけだとpadding分だけ height:100% の
+     計算がズレて行の高さが揃わなくなる）。 */
+  * { box-sizing: border-box; }
   .p-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
-    border-bottom: 3px solid #334155; padding-bottom: 7px; margin-bottom: 12px; }
+    border-bottom: 3px solid #334155; padding-bottom: 7px; margin-bottom: 12px;
+    overflow: hidden; }
   .p-title { font-size: 19px; font-weight: 800; letter-spacing: .02em; color: #1e293b; }
   .p-owner { font-size: 12.5px; color: #475569; text-align: right; line-height: 1.5; white-space: nowrap; }
   .p-owner .p-owner-name { font-size: 14.5px; font-weight: 700; color: #0f172a; }
-  /* ── 週案表 ── */
-  .pw-sheet { display: flex; flex-direction: column; height: 100%; }
+  /* ── 週案表 ──
+     各行・各セルの高さはJS側（buildWeeklyPrintHtml）でインラインstyleとして
+     確定させる。内容量（学級名の長さ・メモ有無など）で行の高さが伸び縮みすると、
+     印刷/PDF化の際に用紙へ収めるための縮小率が毎回変わってしまい「高さが安定しない」
+     原因になる。中の内容が枠より多い場合はheight:100%+overflow:hiddenで
+     はみ出しを切る側に倒し、枠の高さを常に一定に保つ。 */
+  .pw-sheet { display: flex; flex-direction: column; overflow: hidden; }
   .pw-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed;
-    font-size: 12px; flex: 1 1 auto; border: 1.5px solid #94a3b8; border-radius: 10px; overflow: hidden; }
+    font-size: 12px; border: 1.5px solid #94a3b8; border-radius: 10px; overflow: hidden; }
   .pw-table th, .pw-table td { border-right: 1px solid #d4dae3; border-bottom: 1px solid #d4dae3;
     padding: 0; vertical-align: top; overflow: hidden; }
   .pw-table tr > :last-child { border-right: none; }
   .pw-table tbody tr:last-child > * { border-bottom: none; }
   .pw-table thead th { background: linear-gradient(#f4f6fb, #e8edf5); font-weight: 800; color: #334155;
-    height: 48px; vertical-align: middle; text-align: center; border-bottom: 1.5px solid #94a3b8; }
+    vertical-align: middle; text-align: center; border-bottom: 1.5px solid #94a3b8; overflow: hidden; }
   .pw-corner { width: 8%; }
   .pw-day-th .pw-dow { display: block; font-size: 15px; font-weight: 800; color: #1e293b; }
   .pw-day-th .pw-date { display: block; font-size: 10.5px; color: #64748b; font-weight: 600; margin-top: 1px; }
@@ -5723,11 +5739,11 @@ const PRINT_COMPONENT_CSS = `
      内側のflexラッパーで確実に中央化する。 */
   .pw-rowlabel { width: 8%; background: #f1f5f9; font-weight: 700; font-size: 12px; color: #334155;
     vertical-align: middle; text-align: center; padding: 0; }
-  .pw-rl-in { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 100%; }
+  .pw-rl-in { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 100%; overflow: hidden; }
   .pw-rowlabel .pw-pnum { display: block; font-size: 16px; font-weight: 800; color: #1e293b; }
   .pw-rowlabel .pw-time { display: block; font-size: 9.5px; color: #94a3b8; font-weight: 500; margin-top: 1px; }
   /* 授業セル：教科＝左、クラス＝右、その下にタイトル（左寄せ・上から） */
-  .pw-cell-in { padding: 5px 7px; line-height: 1.35; text-align: left; overflow: hidden; }
+  .pw-cell-in { height: 100%; padding: 5px 7px; line-height: 1.35; text-align: left; overflow: hidden; }
   /* align-items は center。baseline だと overflow:hidden を持つ .pw-subj の
      ベースラインが下端になり（Safari）、教科名とピルが縦ズレ・下半分が見切れる。 */
   .pw-cell-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 4px; min-width: 0; }
@@ -5735,47 +5751,62 @@ const PRINT_COMPONENT_CSS = `
      flexベースラインが下端へずれて隣のクラスピルも下にずれる。教科名は短いので
      クリップ不要。折り返さず1行で出す。 */
   .pw-subj { font-weight: 800; font-size: 13px; line-height: 18px; letter-spacing: .01em; flex: 0 1 auto; white-space: nowrap; }
-  /* 学校名つきの長い学級名は省略せず、入りきらなければ次の行に折り返して全文表示する。
-     line-height は教科名と同じ 18px に揃える。Safari は line-height が異なる
-     flexアイテムの center 揃えを誤り、ピルだけ上下にずれるため。枠は line-height が
-     文字より十分高いので半分はみ出しは起きない。 */
-  .pw-cls  { flex: 0 1 auto; max-width: 100%; font-size: 10px; color: #475569; white-space: normal; word-break: break-word; line-height: 18px;
+  /* 学校名つきの長い学級名は最大2行まで折り返して表示し、それでも入りきらない分は
+     省略（行の高さは常に一定を優先）。line-height は教科名と同じ 18px に揃える。 */
+  .pw-cls  { flex: 0 1 auto; max-width: 100%; font-size: 10px; color: #475569; word-break: break-word; line-height: 18px;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
     background: rgba(255,255,255,.7); border: 1px solid rgba(100,116,139,.3); border-radius: 8px; padding: 0 6px; }
-  .pw-ttl  { margin-top: 4px; font-size: 11px; color: #1e293b; }
+  .pw-ttl  { margin-top: 4px; font-size: 11px; color: #1e293b;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .pw-note-flag { margin-top: 3px; font-size: 9px; color: #94a3b8; }
   /* 行事・昼・放課後（特殊行）— 十分な高さ＋上下左右中央 */
   .pw-events .pw-rowlabel, .pw-lunch .pw-rowlabel, .pw-after .pw-rowlabel { background: #e2e8f0; color: #475569; }
-  .pw-events td, .pw-lunch td, .pw-after td { height: 44px; }
-  .pw-special-cell { padding: 5px 8px 5px 16px; font-size: 11px; color: #1e293b; vertical-align: middle; text-align: left; }
+  .pw-special-cell { height: 100%; padding: 5px 8px 5px 16px; font-size: 11px; color: #1e293b; text-align: left;
+    overflow: hidden;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; -webkit-box-align: center; }
   .pw-lunch td, .pw-lunch th { background: #fffdf3; }
   .pw-lunch .pw-rowlabel { background: #fef3c7; color: #92400e; }
-  /* 詳細メモ */
-  .pd-grid { column-count: 2; column-gap: 10px; }
-  .pd-card { break-inside: avoid; page-break-inside: avoid; display: inline-block; width: 100%;
+  /* 詳細メモ：A4横1枚を「田の字」＝2×2＝4コマで固定枠表示する。
+     枠の高さは.pd-grid--quadの実寸(JSでインラインstyleにより確定)を
+     grid-template-rows:1fr 1fr で均等分割し、各カードはheight:100%で
+     ぴったり埋める。内容が多い時は.pd-note側で吸収してoverflow:hiddenで
+     切る（枠自体は内容量に関わらず常に一定サイズ＝要望どおり）。 */
+  .pd-grid--quad { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: 8px; overflow: hidden; }
+  .pd-card { height: 100%; min-height: 0; min-width: 0; overflow: hidden;
+    display: flex; flex-direction: column;
     border: 1px solid #bbb; border-left: 5px solid var(--c, #888); border-radius: 6px;
-    padding: 7px 9px 8px; margin: 0 0 9px; }
-  .pd-card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px;
-    border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 5px; }
-  .pd-day { font-size: 12px; font-weight: 700; color: #111; }
-  .pd-period { font-size: 11px; font-weight: 700; color: #fff; background: var(--c, #555); border-radius: 4px; padding: 1px 7px; }
-  .pd-subject { font-size: 12.5px; font-weight: 800; }
-  .pd-class { font-size: 11px; color: #555; }
-  .pd-lessontitle { font-size: 12px; font-weight: 600; flex-basis: 100%; }
-  .pd-tags { margin: 2px 0 4px; }
-  .pd-tag { display: inline-block; font-size: 9.5px; color: #444; background: #eee; border-radius: 999px; padding: 1px 7px; margin: 0 3px 2px 0; }
-  .pd-note { font-size: 11px; color: #222; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
-  .pd-media { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px; }
-  .pd-media img { max-width: 130px; max-height: 100px; border: 1px solid #ccc; border-radius: 4px; object-fit: contain; }
+    padding: 6px 8px 7px; }
+  .pd-card-head { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+    border-bottom: 1px solid #ddd; padding-bottom: 3px; margin-bottom: 4px; }
+  .pd-day { font-size: 11.5px; font-weight: 700; color: #111; }
+  .pd-period { font-size: 10.5px; font-weight: 700; color: #fff; background: var(--c, #555); border-radius: 4px; padding: 1px 6px; }
+  .pd-subject { font-size: 12px; font-weight: 800; }
+  .pd-class { font-size: 10.5px; color: #555; }
+  .pd-lessontitle { font-size: 11.5px; font-weight: 600; flex-basis: 100%; }
+  .pd-tags { flex: 0 0 auto; margin: 0 0 3px; }
+  .pd-tag { display: inline-block; font-size: 9px; color: #444; background: #eee; border-radius: 999px; padding: 1px 6px; margin: 0 3px 2px 0; }
+  /* flex:1で余った高さを全部使い、入りきらない分はoverflow:hiddenで切る
+     （line-clampだと写真の有無で残り行数が変わり調整が面倒なため、
+     flexボックスの実高さでそのまま切る方式に統一）。 */
+  .pd-note { flex: 1 1 auto; min-height: 0; overflow: hidden;
+    font-size: 10.5px; color: #222; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .pd-media { flex: 0 0 auto; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; overflow: hidden; max-height: 68px; }
+  .pd-media img { max-width: 92px; max-height: 64px; border: 1px solid #ccc; border-radius: 4px; object-fit: contain; }
   .pd-empty { font-size: 12px; color: #666; padding: 20px 4px; }
 `;
 
-/* 印刷ドキュメント用の自己完結CSS（iframe印刷・主にMac用フォールバック） */
+/* 印刷ドキュメント用の自己完結CSS（iframe印刷・主にMac用フォールバック）。
+   @pageの余白はPDF出力(PDF_A4.margin)と同じ5mmに統一。フォントもWindowsで
+   日本語が確実にHiragino相当の見た目（≒行の折り返し量）になるよう、
+   Segoe UIより先にWindows標準の日本語フォントを指定する（フォントが違うと
+   文字幅が変わり、折り返し行数＝セルの必要高さが端末ごとにズレる一因になる）。 */
 const PRINT_CSS = `
-  @page { size: A4 landscape; margin: 8mm; }
-  * { box-sizing: border-box; }
+  @page { size: A4 landscape; margin: 5mm; }
   html, body { margin: 0; padding: 0; background: #fff; color: #111;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Segoe UI", Roboto, sans-serif; }
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+      "Yu Gothic Medium", "Yu Gothic", Meiryo, "Segoe UI", Roboto, sans-serif; }
 ` + PRINT_COMPONENT_CSS;
 
 /* 専用iframeに印刷用ドキュメントを書き出して印刷（→ iOSでは「PDFとして保存」が安定） */
@@ -5816,12 +5847,18 @@ function printDocument(innerHtml) {
 
 async function doPrint() {
   const type = document.querySelector('input[name="printType"]:checked')?.value || 'weekly';
-  const html = (type === 'detail') ? await buildDetailPrintHtml() : buildWeeklyPrintHtml();
+  const html = (type === 'detail') ? await buildDetailPrintHtml() : buildWeeklyPrintHtml('mm');
   printDocument(html);
 }
 
-/* 週案表：A4横1枚に収まる時間割テーブル（HTMLを返す） */
-function buildWeeklyPrintHtml() {
+/* 週案表：A4横1枚に収まる時間割テーブル（HTMLを返す）。
+   unit='px' … PDFダウンロード用（html2canvasが読む1040px幅のデザイン単位そのまま）
+   unit='mm' … ブラウザ印刷(@page)用（実寸mm。PDF_PX_PER_MMで換算するので見た目の
+               縦横比はPDF出力と常に一致する＝端末や出力経路が違っても仕上がりが揃う）
+   各行・各セルの高さはここで確定させ、内容量に関わらず総高さが常に一定になるように
+   する（内容量で行が伸びると、印刷/PDF化のたびに縮小率が変わって「高さが安定しない」
+   原因になっていたため。はみ出す分はCSS側のoverflow:hiddenで切る）。 */
+function buildWeeklyPrintHtml(unit = 'px') {
   const start = state.currentWeekStart;
   const periods = state.settings.periodsCount;
   const lunchAfter = state.settings.lunchAfter || 4;
@@ -5829,14 +5866,27 @@ function buildWeeklyPrintHtml() {
   const days = [0,1,2,3,4].map(d => addDays(start, d));
   const monthKeyOf = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
 
+  // ページ内訳は常にデザインpx（PDF_PAGE_W_PX=1040幅基準）で計算し、mm出力時だけ
+  // 最後にPDF_PX_PER_MMで換算する。こうすることでPDF/印刷どちらでも比率が完全に一致する。
+  const isMm = unit === 'mm';
+  const toU = px => isMm ? +(px / PDF_PX_PER_MM).toFixed(2) : Math.round(px);
+  const suf = isMm ? 'mm' : 'px';
+  const styleH = px => `height:${toU(px)}${suf}`;
+  const HEADER_H = 60, THEAD_H = 48, SPECIAL_H = 44;   // デザインpx（行事・昼・放課後は共通）
+  const fixedTotal = HEADER_H + THEAD_H + SPECIAL_H * 3; // 行事＋昼＋放課後の3行ぶん
+  const periodH = Math.max(46, (PDF_PAGE_H_PX - fixedTotal) / periods);
+  const sheetW = isMm ? PDF_CONTENT_W_MM : PDF_PAGE_W_PX;
+  const sheetH = isMm ? PDF_CONTENT_H_MM : PDF_PAGE_H_PX;
+
   // lesson cell
-  const cell = (date, period) => {
+  const cell = (date, period, hPx) => {
     const l = state.lessons[lessonKey(date, period)];
-    if (!l || !(l.subjectId || l.title || l.className)) return '<td class="pw-cell"></td>';
+    const hStyle = styleH(hPx);
+    if (!l || !(l.subjectId || l.title || l.className)) return `<td class="pw-cell" style="${hStyle}"></td>`;
     const subj = getSubjectById(l.subjectId)?.name || '';
     const color = getSubjectColor(l.subjectId);
     const hasNote = !!(l.note && l.note.trim());
-    return `<td class="pw-cell" style="background:${hexA(color, 0.10)}; border-left:4px solid ${color}"><div class="pw-cell-in">
+    return `<td class="pw-cell" style="${hStyle}; background:${hexA(color, 0.10)}; border-left:4px solid ${color}"><div class="pw-cell-in">
       <div class="pw-cell-head">
         <span class="pw-subj" style="color:${color}">${escHtml(subj)}</span>
         ${l.className ? `<span class="pw-cls">${escHtml(l.className)}</span>` : ''}
@@ -5848,7 +5898,7 @@ function buildWeeklyPrintHtml() {
 
   // header row
   const headCells = days.map((date, d) =>
-    `<th class="pw-day-th"><span class="pw-dow">${DAYS[d]}</span><span class="pw-date">${date.getMonth()+1}/${date.getDate()}</span></th>`
+    `<th class="pw-day-th" style="${styleH(THEAD_H)}"><span class="pw-dow">${DAYS[d]}</span><span class="pw-date">${date.getMonth()+1}/${date.getDate()}</span></th>`
   ).join('');
 
   // events row
@@ -5856,26 +5906,26 @@ function buildWeeklyPrintHtml() {
     const mk = monthKeyOf(date);
     const dayMap = (state.events[mk] && !Array.isArray(state.events[mk])) ? state.events[mk] : {};
     const txt = dayMap[date.getDate()] || '';
-    return `<td class="pw-special-cell">${escHtml(txt)}</td>`;
+    return `<td class="pw-special-cell" style="${styleH(SPECIAL_H)}">${escHtml(txt)}</td>`;
   }).join('');
 
-  let body = `<tr class="pw-events"><th class="pw-rowlabel"><div class="pw-rl-in">行事</div></th>${eventCells}</tr>`;
+  let body = `<tr class="pw-events" style="${styleH(SPECIAL_H)}"><th class="pw-rowlabel" style="${styleH(SPECIAL_H)}"><div class="pw-rl-in">行事</div></th>${eventCells}</tr>`;
   for (let p = 1; p <= periods; p++) {
-    const cells = days.map(date => cell(date, p)).join('');
+    const cells = days.map(date => cell(date, p, periodH)).join('');
     const time = times[p-1] ? `<span class="pw-time">${escHtml(times[p-1])}</span>` : '';
-    body += `<tr class="pw-period"><th class="pw-rowlabel"><div class="pw-rl-in"><span class="pw-pnum">${p}</span>${time}</div></th>${cells}</tr>`;
+    body += `<tr class="pw-period" style="${styleH(periodH)}"><th class="pw-rowlabel" style="${styleH(periodH)}"><div class="pw-rl-in"><span class="pw-pnum">${p}</span>${time}</div></th>${cells}</tr>`;
     if (p === lunchAfter) {
-      const lunchCells = days.map(date => `<td class="pw-special-cell">${escHtml(state.lunch[formatDate(date)] || '')}</td>`).join('');
-      body += `<tr class="pw-lunch"><th class="pw-rowlabel"><div class="pw-rl-in">昼</div></th>${lunchCells}</tr>`;
+      const lunchCells = days.map(date => `<td class="pw-special-cell" style="${styleH(SPECIAL_H)}">${escHtml(state.lunch[formatDate(date)] || '')}</td>`).join('');
+      body += `<tr class="pw-lunch" style="${styleH(SPECIAL_H)}"><th class="pw-rowlabel" style="${styleH(SPECIAL_H)}"><div class="pw-rl-in">昼</div></th>${lunchCells}</tr>`;
     }
   }
-  const afterCells = days.map(date => cell(date, 'after')).join('');
-  body += `<tr class="pw-after"><th class="pw-rowlabel"><div class="pw-rl-in">放課後</div></th>${afterCells}</tr>`;
+  const afterCells = days.map(date => cell(date, 'after', SPECIAL_H)).join('');
+  body += `<tr class="pw-after" style="${styleH(SPECIAL_H)}"><th class="pw-rowlabel" style="${styleH(SPECIAL_H)}"><div class="pw-rl-in">放課後</div></th>${afterCells}</tr>`;
 
-  return `<div class="pw-sheet">` + printHeaderHtml('週案表') + `
+  return `<div class="pw-sheet" style="width:${toU(sheetW)}${suf}; height:${toU(sheetH)}${suf}">` + printHeaderHtml('週案表', HEADER_H, suf, toU) + `
     <table class="pw-table">
       <colgroup><col class="pw-corner"><col><col><col><col><col></colgroup>
-      <thead><tr><th class="pw-corner"></th>${headCells}</tr></thead>
+      <thead><tr><th class="pw-corner" style="${styleH(THEAD_H)}"></th>${headCells}</tr></thead>
       <tbody>${body}</tbody>
     </table></div>`;
 }
@@ -5933,10 +5983,24 @@ async function detailCardHtmls() {
   });
 }
 
+/* 詳細メモ（ブラウザ印刷/@page用）：A4横1枚＝2×2＝4コマの「田の字」で
+   ページを区切る。週案表と同じくデザインpx(PDF_PAGE_H_PX基準)をmmへ換算して
+   使うので、PDFダウンロード版と見た目の比率が揃う。 */
 async function buildDetailPrintHtml() {
   const cards = await detailCardHtmls();
-  return printHeaderHtml('詳細メモ') +
-    (cards.length ? `<div class="pd-grid">${cards.join('')}</div>` : `<div class="pd-empty">この週には記録のある授業がありません。</div>`);
+  if (!cards.length) return printHeaderHtml('詳細メモ') + `<div class="pd-empty">この週には記録のある授業がありません。</div>`;
+  const HEADER_H = 60; // デザインpx（週案表と同じ値で統一）
+  const toMm = px => +(px / PDF_PX_PER_MM).toFixed(2);
+  const fullH = toMm(PDF_PAGE_H_PX);
+  const firstH = toMm(PDF_PAGE_H_PX - HEADER_H);
+  let html = printHeaderHtml('詳細メモ', HEADER_H, 'mm', toMm);
+  for (let i = 0, pageIndex = 0; i < cards.length; i += 4, pageIndex++) {
+    const h = pageIndex === 0 ? firstH : fullH;
+    const isLast = i + 4 >= cards.length;
+    const brk = isLast ? '' : 'break-after: page; page-break-after: always;';
+    html += `<div class="pd-grid--quad" style="height:${h}mm; ${brk}">${cards.slice(i, i + 4).join('')}</div>`;
+  }
+  return html;
 }
 
 /* ═══ PDFダウンロード（html2canvas + jsPDF）═══
@@ -5953,15 +6017,15 @@ function _pdfMakeHost() {
   const host = document.createElement('div');
   host.id = '_pdfHost';
   host.style.cssText = `position:fixed; left:-99999px; top:0; width:${PDF_PAGE_W_PX}px; background:#fff; color:#111;`
-    + `font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Segoe UI",Roboto,sans-serif;`;
-  // 注入CSS。PDFではカード割付を2列グリッドにして高さ計測しやすくする。
+    // Windowsで日本語がSegoe UI（非対応→フォント置換）に落ちる前にYu Gothic/Meiryoを
+    // 挟む。フォントが変わると文字幅・折り返し行数が変わり、行の必要高さが端末ごとに
+    // ズレる一因になっていたため、印刷iframe側(PRINT_CSS)と同じスタックに揃える。
+    + `font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic Medium","Yu Gothic",Meiryo,"Segoe UI",Roboto,sans-serif;`;
+  // 注入CSS。.pd-grid--quad/.pd-card は共通CSS(PRINT_COMPONENT_CSS)側で
+  // 既にheight:100%+grid-template-rows:1fr 1frの固定枠になっているので、
+  // PDFホスト専用の上書きは不要。
   host.innerHTML = `<style>${PRINT_COMPONENT_CSS}
-    #_pdfHost .pdf-page { width:${PDF_PAGE_W_PX}px; background:#fff; padding:0; }
-    #_pdfHost .pd-grid { column-count:auto; display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:start; }
-    #_pdfHost .pd-card { display:block; }
-    /* 詳細メモPDF：2コマ横並びのカードをA4ページ高さいっぱいに揃える（一定高さ） */
-    #_pdfHost .pd-grid--pairs { height:100%; align-items:stretch; }
-    #_pdfHost .pd-grid--pairs .pd-card { height:100%; overflow:hidden; }
+    #_pdfHost .pdf-page { width:${PDF_PAGE_W_PX}px; background:#fff; padding:0; overflow:hidden; }
   </style>`;
   document.body.appendChild(host);
   return host;
@@ -6004,9 +6068,12 @@ async function exportPdf() {
       const page = document.createElement('div');
       page.className = 'pdf-page';
       page.style.height = PDF_PAGE_H_PX + 'px';   // A4横の内容高さいっぱいに表を伸ばす
-      page.innerHTML = buildWeeklyPrintHtml();
+      page.innerHTML = buildWeeklyPrintHtml('px');
       host.appendChild(page);
-      await _pdfAddPage(pdf, page, true, { fit: 0.90, centerV: true });  // 少し小さめにして余白を確保
+      // fixedH指定で常にPDF_PAGE_H_PXぴったりのキャンバスにする（内容量で
+      // 縮小率が変わらないよう固定。行の高さ自体はbuildWeeklyPrintHtml側で
+      // 既に確定済みなので、通常はscrollHeightもほぼ一致するが念のため明示）。
+      await _pdfAddPage(pdf, page, true, { fit: 0.90, centerV: true, fixedH: PDF_PAGE_H_PX });
     } else {
       const cards = await detailCardHtmls();
       const header = printHeaderHtml('詳細メモ');
@@ -6017,8 +6084,10 @@ async function exportPdf() {
         host.appendChild(page);
         await _pdfAddPage(pdf, page, true);
       } else {
-        // A4横1ページに「2コマ横並び」。2枚ずつページにして、各カードは縦に伸びてOK。
-        for (let i = 0, pageIndex = 0; i < cards.length; i += 2, pageIndex++) {
+        // A4横1ページに「田の字」＝2×2＝4コマ。4枚ずつページにし、各カードは
+        // .pd-grid--quad（grid-template-rows:1fr 1fr）でぴったり均等割り＝
+        // 内容量に関わらず枠は常に同じ大きさ（要望どおり）。
+        for (let i = 0, pageIndex = 0; i < cards.length; i += 4, pageIndex++) {
           const page = document.createElement('div');
           page.className = 'pdf-page';
           page.style.height = PDF_PAGE_H_PX + 'px';   // A4横の用紙高さに固定
@@ -6027,11 +6096,10 @@ async function exportPdf() {
           page.style.overflow = 'hidden';
           if (pageIndex === 0) page.insertAdjacentHTML('beforeend', header);
           const grid = document.createElement('div');
-          grid.className = 'pd-grid pd-grid--pairs';
+          grid.className = 'pd-grid--quad';
           grid.style.flex = '1 1 auto';
           grid.style.minHeight = '0';
-          grid.insertAdjacentHTML('beforeend', cards[i]);
-          if (cards[i + 1]) grid.insertAdjacentHTML('beforeend', cards[i + 1]);
+          for (let k = i; k < Math.min(i + 4, cards.length); k++) grid.insertAdjacentHTML('beforeend', cards[k]);
           page.appendChild(grid);
           host.appendChild(page);
           await _pdfAddPage(pdf, page, pageIndex === 0, { fixedH: PDF_PAGE_H_PX });
