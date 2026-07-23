@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1E293B" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="WEEKY" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css?v=11.0.0" />
+  <title>WEEKY</title>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ACTIVATION GATE
+════════════════════════════════════════════════════════════ -->
+<div class="gate-overlay" id="activationGate" role="dialog" aria-modal="true" aria-labelledby="activationTitle">
+  <div class="gate-card">
+    <div class="gate-logo">
+      <img src="icons/icon-192.png" width="72" height="72" alt="WEEKY" class="gate-logo-img" />
+    </div>
+    <h1 id="activationTitle" class="gate-title">WEEKY</h1>
+    <p class="gate-subtitle">授業記録・週案管理アプリ</p>
+    <p class="gate-label">アクティベーションコード</p>
+    <input type="text" id="activationInput" class="gate-input" placeholder="XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+    <button class="gate-btn" id="activateBtn">アクティベート</button>
+    <p class="gate-error" id="activationError" hidden>コードが正しくありません</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREEN LOCK (PINパスコード・テンキー)
+════════════════════════════════════════════════════════════ -->
+<div class="lock-overlay" id="lockOverlay" role="dialog" aria-modal="true" aria-label="画面ロック" hidden>
+  <div class="lock-bg" aria-hidden="true"></div>
+  <div class="lock-inner">
+    <div class="lock-emoji">🔒</div>
+    <div class="lock-title" id="lockTitle">パスコードを入力</div>
+    <div class="lock-sub" id="lockSub"></div>
+    <div class="lock-dots" id="lockDots"></div>
+    <p class="lock-error" id="lockError" hidden>パスコードが違います</p>
+    <div class="lock-pad" id="lockPad">
+      <button class="lock-key" data-k="1" type="button">1</button>
+      <button class="lock-key" data-k="2" type="button">2</button>
+      <button class="lock-key" data-k="3" type="button">3</button>
+      <button class="lock-key" data-k="4" type="button">4</button>
+      <button class="lock-key" data-k="5" type="button">5</button>
+      <button class="lock-key" data-k="6" type="button">6</button>
+      <button class="lock-key" data-k="7" type="button">7</button>
+      <button class="lock-key" data-k="8" type="button">8</button>
+      <button class="lock-key" data-k="9" type="button">9</button>
+      <span class="lock-key lock-key--ghost" aria-hidden="true"></span>
+      <button class="lock-key" data-k="0" type="button">0</button>
+      <button class="lock-key lock-key--del" data-k="del" type="button" aria-label="1文字消す">⌫</button>
+    </div>
+    <button class="lock-cancel" id="lockCancel" type="button" hidden>キャンセル</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     初回セットアップ（オンボーディング）— JSがステージを描画
+     ════════════════════════════════════════════════════════════ -->
+<div class="ob-overlay" id="onboarding" role="dialog" aria-modal="true" aria-label="初期設定" hidden>
+  <div class="ob-bg" aria-hidden="true">
+    <span class="ob-glow ob-glow--1"></span>
+    <span class="ob-glow ob-glow--2"></span>
+    <span class="ob-glow ob-glow--3"></span>
+    <span class="ob-glow ob-glow--4"></span>
+    <span class="ob-glow ob-glow--5"></span>
+  </div>
+  <div class="ob-stage" id="obStage"></div>
+  <footer class="ob-footer">
+    <div class="ob-dots" id="obDots" aria-hidden="true"></div>
+    <div class="ob-nav">
+      <button class="ob-btn ob-btn--ghost" id="obBack" type="button">戻る</button>
+      <button class="ob-btn ob-btn--primary" id="obNext" type="button">続ける</button>
+    </div>
+  </footer>
+</div>
+
+<!-- Teacher lock gate removed -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     HANDWRITING FULLSCREEN OVERLAY
+════════════════════════════════════════════════════════════ -->
+<div class="hw-fullscreen" id="hwFullscreenOverlay" role="dialog" aria-modal="true" aria-label="手書きエディタ" hidden>
+  <div class="hw-toolbar">
+    <div class="hw-toolbar-group">
+      <button class="hw-tool-btn active" id="hwPenBtn" data-tool="pen" aria-pressed="true" aria-label="ペン">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 15l3-1 9-9-2-2-9 9-1 3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M11 5l2 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <button class="hw-tool-btn" id="hwEraserBtn" data-tool="eraser" aria-pressed="false" aria-label="消しゴム">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 14h12M9 4L4 9l3 3 5-5-3-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="hw-color-group" id="hwColorGroup" role="group" aria-label="ペンの色">
+      <button class="hw-color-btn active" data-color="#1a1a1a" style="background:#1a1a1a" aria-label="黒" aria-pressed="true"></button>
+      <button class="hw-color-btn" data-color="#e11d48" style="background:#e11d48" aria-label="赤" aria-pressed="false"></button>
+      <button class="hw-color-btn" data-color="#2563eb" style="background:#2563eb" aria-label="青" aria-pressed="false"></button>
+      <button class="hw-color-btn" data-color="#16a34a" style="background:#16a34a" aria-label="緑" aria-pressed="false"></button>
+      <button class="hw-color-btn" data-color="#d97706" style="background:#d97706" aria-label="橙" aria-pressed="false"></button>
+      <button class="hw-color-btn" data-color="#7c3aed" style="background:#7c3aed" aria-label="紫" aria-pressed="false"></button>
+    </div>
+    <div class="hw-stroke-group">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="2" fill="currentColor" opacity=".5"/></svg>
+      <input type="range" class="hw-stroke-slider" id="hwStrokeSlider" min="1" max="24" value="3" aria-label="線の太さ" />
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="currentColor" opacity=".5"/></svg>
+    </div>
+    <div class="hw-page-group" role="group" aria-label="ページ操作">
+      <button class="hw-page-btn" id="hwFsPrev" aria-label="前のページ">‹</button>
+      <span class="hw-page-info" id="hwFsPageInfo" aria-live="polite">1 / 1</span>
+      <button class="hw-page-btn" id="hwFsNext" aria-label="次のページ">›</button>
+      <button class="hw-page-btn" id="hwFsAddPage" aria-label="ページを追加">+</button>
+    </div>
+    <div class="hw-toolbar-actions">
+      <button class="hw-action-btn" id="hwUndoBtn" aria-label="元に戻す">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 14L4 9l5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h11a5 5 0 0 1 0 10h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="hw-action-btn" id="hwRedoBtn" aria-label="やり直す">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 14l5-5-5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9H9a5 5 0 0 0 0 10h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="hw-action-btn" id="hwClearPageBtn" aria-label="このページをクリア">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M5 4V3h6v1M6 7v5M10 7v5M3 4l1 9h8l1-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn-primary btn-sm" id="hwSaveCloseBtn">保存して閉じる</button>
+    </div>
+  </div>
+  <div class="hw-canvas-area">
+    <canvas id="hwCanvas" aria-label="手書き入力エリア"></canvas>
+    <div class="hw-dots" aria-hidden="true"></div>
+  </div>
+</div>
+
+<!-- 手書きペンの色：選択中のスウォッチを再タップするとOSの自由色ピッカーが直接開く。
+     ブラウザは非表示(display:none/pointer-events:none/画面外)の color 入力ではピッカーを
+     開けないため、開く瞬間にスウォッチの位置へ重ねて opacity:0 で表示する。 -->
+<input type="color" id="hwColorInput" aria-label="ペンの色を選ぶ"
+       style="position:fixed;left:0;top:0;width:36px;height:36px;opacity:0;border:none;padding:0;background:none;z-index:6000;" />
+
+<!-- ═══════════════════════════════════════════════════════════
+     APP SHELL  (sidebar always-visible at 62 px)
+════════════════════════════════════════════════════════════ -->
+<div class="app-shell">
+
+  <!-- ── SLIM DARK SIDEBAR ── -->
+  <aside class="sidebar" id="sidebar" role="navigation" aria-label="メインナビゲーション">
+
+    <!-- Logo mark -->
+    <div class="sb-mark" aria-label="WEEKY"><img src="icons/icon-192.png" alt="WEEKY" /></div>
+
+    <!-- 授業 group -->
+    <div class="sb-section-label">授業</div>
+    <button class="nav-item active" data-view="weekly" aria-current="page" aria-label="週案"
+            data-tip-title="週案" data-tip="月〜金の時間割。各コマをタップして授業内容・写真・手書きを記録できます。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="2" y="3" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M2 7h16M7 3v4M13 3v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <span class="nav-label">週案</span>
+    </button>
+    <button class="nav-item" data-view="todo" aria-label="ToDo"
+            data-tip-title="ToDo" data-tip="やることをサッと追加。プロジェクトごとの整理や、期限つきの長期ToDoもここで管理します。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M4 10l3 3 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="2" y="3" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+      <span class="nav-label">ToDo</span>
+    </button>
+
+    <!-- 記録 group -->
+    <div class="sb-section-label">記録</div>
+    <button class="nav-item" data-view="progress" aria-label="進度"
+            data-tip-title="進度" data-tip="教科・学級ごとの授業の進み具合を一覧で確認できます。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M3 14l4-5 4 3 4-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+      <span class="nav-label">進度</span>
+    </button>
+    <button class="nav-item" data-view="events" aria-label="月行事"
+            data-tip-title="月行事" data-tip="1日〜月末の予定を縦に並べて入力。コピペでまとめて取り込みもできます。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="2" y="3" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M2 8h16M6 3v3M14 3v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <rect x="6" y="11" width="2" height="2" rx=".5" fill="currentColor"/>
+        <rect x="9" y="11" width="2" height="2" rx=".5" fill="currentColor"/>
+        <rect x="12" y="11" width="2" height="2" rx=".5" fill="currentColor"/>
+      </svg>
+      <span class="nav-label">月行事</span>
+    </button>
+    <button class="nav-item" data-view="photos" aria-label="写真"
+            data-tip-title="写真" data-tip="授業や行事の写真をまとめて保存・閲覧できます。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="2" y="4" width="16" height="13" rx="2" stroke="currentColor" stroke-width="1.6"/>
+        <circle cx="10" cy="10.5" r="3" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M7 4l1.5-2h3L13 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="nav-label">写真</span>
+    </button>
+    <button class="nav-item" data-view="notes" aria-label="メモ"
+            data-tip-title="メモ" data-tip="使いやすいメモ帳。タグでジャンルごとに整理できます。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M5 3h10a2 2 0 012 2v10a2 2 0 01-2 2H7l-4-4V5a2 2 0 012-2z" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M7 8h6M7 11h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="nav-label">メモ</span>
+    </button>
+
+    <!-- 生徒 group -->
+    <div class="sb-section-label">生徒</div>
+    <button class="nav-item nav-item--student" data-view="attendance" aria-label="出席"
+            data-tip-title="出席" data-tip="学級ごとに出欠を○×△でタップ入力。月単位で記録できます。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M4 10l3 3 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="10" cy="6" r="3" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+      <span class="nav-label">出席</span>
+    </button>
+    <button class="nav-item nav-item--student" data-view="roster" aria-label="名簿"
+            data-tip-title="名簿" data-tip="学校→学級→生徒の順で登録。生徒ごとにQRコード用IDを発行できます。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="7" cy="6" r="2.5" stroke="currentColor" stroke-width="1.6"/>
+        <circle cx="14" cy="6" r="2.5" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M2 16c0-2.761 2.239-5 5-5h1M10 16c0-2.761 2.239-5 5-5s5 2.239 5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <span class="nav-label">名簿</span>
+    </button>
+    <button class="nav-item nav-item--student" data-view="evaluation" aria-label="評価"
+            data-tip-title="評価" data-tip="教科ごとに評定と所見メモを生徒別に記録できます。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M10 2l2.09 4.26L17 7.27l-3.5 3.41.83 4.83L10 13.25l-4.33 2.26.83-4.83L3 7.27l4.91-.71L10 2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      </svg>
+      <span class="nav-label">評価</span>
+    </button>
+
+    <div class="sb-spacer"></div>
+
+    <!-- Bottom: Import + Print + Settings -->
+    <div class="sb-bottom">
+      <button class="nav-item" data-view="import" aria-label="バックアップ"
+              data-tip-title="バックアップ" data-tip="データの保存（書き出し）と、ファイルからの復元ができます。大切なデータを守りましょう。">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <ellipse cx="10" cy="5" rx="6.5" ry="2.4" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M3.5 5v10c0 1.3 2.9 2.4 6.5 2.4s6.5-1.1 6.5-2.4V5" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M3.5 10c0 1.3 2.9 2.4 6.5 2.4s6.5-1.1 6.5-2.4" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <span class="nav-label">バックアップ</span>
+      </button>
+      <button class="nav-item" data-view="print" aria-label="印刷"
+              data-tip-title="印刷" data-tip="週案表などを印刷用にプレビューして出力できます。">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M5 8V4h10v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <rect x="3" y="8" width="14" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+          <rect x="6" y="13" width="8" height="3" rx=".5" stroke="currentColor" stroke-width="1.4"/>
+          <circle cx="15" cy="11" r="1" fill="currentColor"/>
+        </svg>
+        <span class="nav-label">印刷・PDF</span>
+      </button>
+      <button class="nav-item" data-view="settings" aria-label="設定"
+              data-tip-title="設定" data-tip="先生名・学校名、時限数、教科の色、カラーテーマなどを変更できます。">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+        <span class="nav-label">設定</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── MAIN COLUMN ── -->
+  <div class="main-column">
+
+    <!-- HEADER -->
+    <header class="app-header" role="banner">
+      <div class="header-logo" aria-label="WEEKY">W<em>E</em>EKY</div>
+      <span class="header-ver" id="headerVersion"></span>
+
+      <div class="week-nav" role="group" aria-label="週移動">
+        <button class="week-nav-btn" id="prevWeekBtn" aria-label="前の週へ">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="week-title" id="weekTitle" aria-live="polite" aria-haspopup="dialog" title="日付を選んで週を移動"></button>
+        <!-- 自作カレンダー（ネイティブの日付ピッカーはiPad PWAで不安定なため） -->
+        <div class="week-cal-pop" id="weekCalPop" role="dialog" aria-label="日付を選択" hidden>
+          <div class="week-cal-head">
+            <button class="week-cal-nav" id="weekCalPrev" type="button" aria-label="前の月">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <span class="week-cal-month" id="weekCalMonth"></span>
+            <button class="week-cal-nav" id="weekCalNext" type="button" aria-label="次の月">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="week-cal-grid" id="weekCalGrid"></div>
+          <button class="week-cal-today" id="weekCalToday" type="button">今日を選ぶ</button>
+        </div>
+        <button class="week-nav-btn" id="nextWeekBtn" aria-label="次の週へ">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="today-btn" id="todayBtn">今週</button>
+      </div>
+
+      <div class="header-right">
+        <span class="clock" id="clockEl" aria-live="off" aria-label="現在時刻"></span>
+        <button class="weather-btn" id="weatherBtn" aria-label="天気予報" aria-haspopup="dialog">
+          <span class="weather-icon" id="weatherIcon" aria-hidden="true">－</span>
+          <span class="weather-temp" id="weatherTemp"></span>
+        </button>
+        <button class="header-icon-btn" id="searchBtn" aria-label="検索">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M12.5 12.5l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="context-toggle-btn" id="contextToggleBtn" aria-label="コンテキストパネルを切り替え" aria-expanded="true" aria-controls="contextPanel">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <rect x="1" y="1" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M12 1v16" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENT ROW -->
+    <div class="content-area">
+
+      <main class="main-content" role="main" id="mainContent">
+
+        <!-- 週案 -->
+        <div class="view active" id="view-weekly">
+          <div class="week-grid-wrapper">
+            <div class="week-grid" id="weekGrid" role="grid" aria-label="週案グリッド"></div>
+          </div>
+        </div>
+
+        <!-- ToDo（統一・タグ別カラム） -->
+        <div class="view" id="view-todo">
+          <div class="todo-board-wrap">
+            <form class="todo-compose" id="todoComposeForm">
+              <span class="quick-add-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+              <input type="text" class="todo-compose-text" id="todoComposeText"
+                     placeholder="やることを入力…（Enterで追加）"
+                     autocomplete="off" enterkeyhint="done" aria-label="ToDo を入力" />
+              <span class="todo-tag-wrap">
+                <input type="text" class="todo-compose-tag" id="todoComposeTag"
+                       placeholder="# タグ" autocomplete="off" aria-label="タグ（任意・既存タグから選択も可）" />
+                <button type="button" class="todo-tag-caret" id="todoTagCaret" aria-label="タグ一覧を表示">▼</button>
+              </span>
+              <input type="date" class="todo-compose-date" id="todoComposeDate" aria-label="締切（任意・入れると長期ToDo）" />
+              <button type="submit" class="todo-compose-btn" id="todoComposeBtn">追加</button>
+            </form>
+            <div class="todo-tagpicker" id="todoTagPicker"></div>
+            <div class="todo-board" id="todoBoard"></div>
+          </div>
+        </div>
+
+        <!-- 進度（同学年クラス横並び比較） -->
+        <div class="view" id="view-progress">
+          <div class="view-page">
+            <div class="view-header">
+              <h2>進度</h2>
+              <div class="view-header-filters">
+                <select class="filter-select" id="progressGrade" aria-label="学年"></select>
+                <select class="filter-select" id="progressSubjectSel" aria-label="教科"></select>
+              </div>
+            </div>
+            <p class="settings-hint">週案に登録した授業から自動集計します。縦＝何回目、横＝同学年の各クラス。進度の差が一目でわかります。</p>
+            <div id="progressContent"></div>
+          </div>
+        </div>
+
+        <!-- 月行事 -->
+        <div class="view" id="view-events">
+          <div class="view-page">
+            <div class="view-header">
+              <h2>月行事</h2>
+              <button class="btn-secondary" id="importEventsBtn">Excel 貼り付け</button>
+            </div>
+            <div class="events-month-nav" role="group" aria-label="月移動">
+              <button class="week-nav-btn" id="eventsPrevMonthBtn" aria-label="前の月">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </button>
+              <span id="eventsMonthLabel" class="events-month-label"></span>
+              <button class="week-nav-btn" id="eventsNextMonthBtn" aria-label="次の月">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+            <div class="events-grid" id="eventsGrid"></div>
+          </div>
+        </div>
+
+        <!-- 写真 -->
+        <div class="view" id="view-photos">
+          <div class="view-page">
+            <div class="view-header">
+              <h2>写真</h2>
+              <button class="btn-primary" id="addPhotoBtn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                追加
+              </button>
+            </div>
+            <div class="photo-grid" id="photoGrid" role="list" aria-label="写真ギャラリー"></div>
+          </div>
+        </div>
+
+        <!-- メモ（iPad風2ペイン） -->
+        <div class="view" id="view-notes">
+          <div class="notes-app">
+            <!-- 左ペイン：一覧 -->
+            <aside class="notes-sidebar" aria-label="メモ一覧">
+              <div class="notes-sidebar-head">
+                <h2>メモ</h2>
+                <button class="icon-btn-round" id="addNoteBtn" aria-label="新規メモ">
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 3v12M3 9h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+              <div class="notes-search">
+                <input type="search" id="notesSearch" placeholder="検索…" aria-label="メモ検索" />
+              </div>
+              <div class="notes-list" id="notesList" role="list"></div>
+            </aside>
+            <!-- 右ペイン：エディタ -->
+            <section class="notes-editor" id="notesEditor" aria-label="メモ編集">
+              <div class="notes-editor-empty" id="notesEditorEmpty">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><path d="M5 3h10l4 4v14H5V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M15 3v4h4M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <p>メモを選択するか、＋で新規作成してください</p>
+              </div>
+              <div class="notes-editor-pane hidden" id="notesEditorPane">
+                <div class="notes-editor-toolbar">
+                  <span class="notes-editor-date" id="noteEditorDate"></span>
+                  <button class="icon-btn-round notes-del" id="noteDeleteBtn" aria-label="このメモを削除">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+                <input type="text" class="note-title-input" id="noteTitleInput" placeholder="タイトル" aria-label="メモのタイトル" />
+                <div class="note-tags-row" id="noteTagsRow">
+                  <div class="tags-container" id="noteTagsContainer"></div>
+                  <input type="text" class="tag-input" id="noteTagInput" placeholder="タグを追加…" aria-label="タグ追加" />
+                </div>
+                <textarea class="note-body-input" id="noteBodyInput" placeholder="ここにメモを入力…" aria-label="メモ本文"></textarea>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- 出席 -->
+        <div class="view" id="view-attendance">
+          <div class="view-page view-page--student">
+            <div class="student-toolbar">
+              <h2>出席</h2>
+              <div class="student-toolbar-controls">
+                <select class="filter-select" id="attSchoolSelect" aria-label="学校"></select>
+                <select class="filter-select" id="attClassSelect" aria-label="学級"></select>
+                <select class="filter-select" id="attSubjectSelect" aria-label="教科"></select>
+                <button class="btn-ghost btn-sm" id="forgotItemsBtn">🎒 忘れ物の項目</button>
+                <button class="btn-student btn-sm att-start-btn" id="startReceptionBtn">▶ QR受付を開始</button>
+              </div>
+            </div>
+            <div id="attendanceContent"></div>
+          </div>
+        </div>
+
+        <!-- 名簿（3カラム：学校 / 学級 / 名簿） -->
+        <div class="view" id="view-roster">
+          <div class="roster-manager">
+            <!-- 学校カラム -->
+            <section class="rm-col" id="rmSchoolCol" aria-label="学校">
+              <div class="rm-col-head">
+                <span class="rm-col-title">学校</span>
+                <span class="rm-col-count" id="rmSchoolCount"></span>
+              </div>
+              <div class="rm-list" id="rmSchoolList"></div>
+              <form class="rm-add" id="rmSchoolAddForm">
+                <input type="text" id="rmSchoolName" placeholder="学校名" autocomplete="off" aria-label="学校名" />
+                <input type="text" id="rmSchoolCode" placeholder="ｺｰﾄﾞ" maxlength="1" inputmode="numeric" aria-label="学校コード" />
+                <button type="submit" aria-label="学校を追加">＋</button>
+              </form>
+            </section>
+
+            <!-- 学級カラム -->
+            <section class="rm-col" id="rmClassCol" aria-label="学級">
+              <div class="rm-col-head">
+                <span class="rm-col-title">学級</span>
+                <span class="rm-col-count" id="rmClassCount"></span>
+              </div>
+              <div class="rm-list" id="rmClassList"></div>
+              <form class="rm-add" id="rmClassAddForm">
+                <input type="text" id="rmClassText" placeholder="例: 3年2組 / 3-2" autocomplete="off" aria-label="学級名" />
+                <input type="number" id="rmClassYear" placeholder="年度" inputmode="numeric" aria-label="年度" />
+                <button type="submit" aria-label="学級を追加">＋</button>
+              </form>
+            </section>
+
+            <!-- 名簿カラム -->
+            <section class="rm-col rm-col--roster" id="rmRosterCol" aria-label="名簿">
+              <div class="rm-col-head">
+                <span class="rm-col-title" id="rmRosterTitle">名簿</span>
+                <div class="rm-roster-actions">
+                  <button class="btn-secondary btn-sm" id="rmPasteBtn">名簿を貼り付け</button>
+                  <button class="btn-secondary btn-sm" id="rmCsvBtn">CSV書き出し</button>
+                  <button class="btn-ghost btn-sm" id="rmDetailBtn">詳細追加</button>
+                </div>
+              </div>
+              <div class="rm-roster-body" id="rmRoster"></div>
+            </section>
+          </div>
+        </div>
+
+        <!-- 評価 -->
+        <div class="view" id="view-evaluation">
+          <div class="view-page view-page--student">
+            <div class="student-toolbar">
+              <h2>評価</h2>
+              <div class="student-toolbar-controls">
+                <select class="filter-select" id="evalSchoolSelect" aria-label="学校"></select>
+                <select class="filter-select" id="evalClassSelect" aria-label="学級"></select>
+                <select class="filter-select" id="evalSubjectSelect" aria-label="教科"></select>
+              </div>
+            </div>
+            <div id="evaluationContent"></div>
+          </div>
+        </div>
+
+        <!-- バックアップ（このアプリで唯一のバックアップ画面） -->
+        <div class="view" id="view-import">
+          <div class="view-page">
+            <div class="view-header"><h2>バックアップ</h2></div>
+            <p class="backup-intro">データはこの端末の中だけに保存されています。万一にそなえ、定期的にファイルへ<strong>書き出し（バックアップ）</strong>て保管しましょう。別の端末や、データが消えたときは<strong>復元</strong>で戻せます。</p>
+            <div class="import-options">
+              <button class="import-card" id="fullBackupBtn">
+                <svg class="import-icon" viewBox="0 0 32 32" fill="none">
+                  <rect width="32" height="32" rx="8" fill="#FFF7ED"/>
+                  <path d="M16 24V12M10 18l6-6 6 6" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M8 8h16" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>完全バックアップ</span>
+                <small>写真も含めて全部を書き出し（おすすめ）</small>
+              </button>
+              <button class="import-card" id="exportJsonBtn">
+                <svg class="import-icon" viewBox="0 0 32 32" fill="none">
+                  <rect width="32" height="32" rx="8" fill="#F0FDF4"/>
+                  <path d="M16 24V12M10 18l6-6 6 6" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M8 8h16" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>テキストのみ書き出し</span>
+                <small>軽量・写真なし</small>
+              </button>
+              <button class="import-card" id="importJsonBtn">
+                <svg class="import-icon" viewBox="0 0 32 32" fill="none">
+                  <rect width="32" height="32" rx="8" fill="#EEF2FF"/>
+                  <path d="M16 8v12M10 14l6 6 6-6" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M8 24h16" stroke="#4F46E5" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>復元（読み込み）</span>
+                <small>バックアップファイルから戻す</small>
+              </button>
+            </div>
+
+            <div class="backup-storage">
+              <h3 class="backup-storage-title">保存容量</h3>
+              <div class="storage-meter">
+                <div class="storage-meter-head"><span>週案・名簿・出席・評価・写真・手書きなど全データ</span><span id="storageMeterText">—</span></div>
+                <div class="storage-meter-bar"><span id="storageMeterFill"></span></div>
+              </div>
+              <p class="backup-intro">v11では全データを端末が割り当てる大きめの枠（IndexedDB）にまとめて保存します（v10のようなテキスト5MB上限はありません）。いっぱいに近づいたら、バックアップしてから不要な写真を整理してください。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 印刷 -->
+        <div class="view" id="view-print">
+          <div class="view-page">
+            <div class="view-header"><h2>印刷・PDF</h2></div>
+            <div class="print-options">
+              <label class="print-radio"><input type="radio" name="printType" value="weekly" checked /><span>週案表<small>A4横・1枚に週全体</small></span></label>
+              <label class="print-radio"><input type="radio" name="printType" value="detail" /><span>詳細メモ付き<small>A4横・コマごとに記録</small></span></label>
+            </div>
+            <p class="settings-hint">いま開いている週（<span id="printWeekRange"></span>）をA4横で出力します。</p>
+            <div class="print-actions">
+              <button class="btn-primary btn-lg" id="exportPdfBtn">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M3 13h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                PDFをダウンロード
+              </button>
+              <button class="btn-ghost btn-lg" id="printBtn">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M4 6V3h8v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                  <rect x="2" y="6" width="12" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+                  <rect x="4" y="10" width="8" height="3" rx=".5" stroke="currentColor" stroke-width="1.4"/>
+                </svg>
+                印刷する
+              </button>
+            </div>
+            <div class="pdf-howto">
+              <p class="pdf-howto-title">📄 使い方</p>
+              <p><strong>PDFをダウンロード</strong>：A4横のPDFファイルがそのまま保存されます（印刷画面なし）。iPadでは「ファイル」アプリや共有から開けます。<strong>おすすめ。</strong></p>
+              <p><strong>印刷する</strong>：プリンタが手元にある場合に。iPadの印刷画面は向き指定が不安定なので、PDF保存はうえのボタンをお使いください。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 印刷用エリア（画面では非表示・印刷時のみ表示） -->
+        <div id="printWeeklyArea" class="print-area print-weekly-area" aria-hidden="true"></div>
+        <div id="printDetailArea" class="print-area print-detail-area" aria-hidden="true"></div>
+
+        <!-- 設定 -->
+        <div class="view" id="view-settings">
+          <div class="settings-app">
+            <!-- 左：カテゴリ -->
+            <nav class="settings-nav" id="settingsNav" aria-label="設定カテゴリ">
+              <div class="settings-nav-title">設定</div>
+              <button class="settings-nav-item active" data-cat="account">👤 アカウント</button>
+              <button class="settings-nav-item" data-cat="lesson">📅 授業</button>
+              <button class="settings-nav-item" data-cat="theme">🎨 テーマ</button>
+              <button class="settings-nav-item" data-cat="anim">✨ アニメーション</button>
+              <button class="settings-nav-item" data-cat="subjects">📚 教科</button>
+              <button class="settings-nav-item" data-cat="classes">🏫 学級</button>
+              <button class="settings-nav-item" data-cat="lock">🔒 ロック</button>
+              <button class="settings-nav-item" data-cat="support">💛 応援</button>
+              <button class="settings-nav-item" data-cat="feedback">🐞 不具合の報告</button>
+              <button class="settings-nav-item" data-cat="about">ℹ️ このアプリ</button>
+            </nav>
+
+            <!-- 右：詳細 -->
+            <div class="settings-detail" id="settingsDetail">
+              <section class="settings-section" data-cat="account">
+                <h3>アカウント</h3>
+                <div class="settings-row">
+                  <label for="teacherName">先生名</label>
+                  <input type="text" id="teacherName" class="settings-input" placeholder="山田 太郎" />
+                </div>
+                <div class="settings-row">
+                  <label for="schoolName">学校名</label>
+                  <input type="text" id="schoolName" class="settings-input" placeholder="○○小学校" />
+                </div>
+              </section>
+
+              <section class="settings-section hidden" data-cat="lesson">
+                <h3>授業</h3>
+                <div class="settings-row">
+                  <label for="periodsCount">1日の時限数</label>
+                  <select id="periodsCount" class="settings-input">
+                    <option value="5">5時限</option>
+                    <option value="6" selected>6時限</option>
+                    <option value="7">7時限</option>
+                  </select>
+                </div>
+                <div class="settings-row">
+                  <label for="lessonDuration">1コマの長さ</label>
+                  <select id="lessonDuration" class="settings-input">
+                    <option value="45">45分</option>
+                    <option value="50">50分</option>
+                  </select>
+                </div>
+                <p class="settings-hint">各時限の開始時刻は週案画面の「1」の下の欄から設定できます。現在時刻の赤い線はこの設定に連動します。</p>
+              </section>
+
+              <section class="settings-section hidden" data-cat="theme">
+                <h3>外観</h3>
+                <p class="settings-hint">明るさを選べます。「自動」は端末（iPad）のダークモード設定に合わせて切り替わります。</p>
+                <div class="appearance-seg" id="appearanceSeg" role="radiogroup" aria-label="外観モード">
+                  <button class="appearance-opt" data-appearance="light" role="radio"><span class="appearance-emoji">☀️</span>ライト</button>
+                  <button class="appearance-opt" data-appearance="dark" role="radio"><span class="appearance-emoji">🌙</span>ダーク</button>
+                  <button class="appearance-opt" data-appearance="auto" role="radio"><span class="appearance-emoji">🔄</span>自動</button>
+                </div>
+                <h3 style="margin-top:24px">カラーテーマ</h3>
+                <p class="settings-hint">アクセント色です。明るさ（ライト／ダーク）とは別に選べます。</p>
+                <div class="theme-grid" id="themeGrid" role="radiogroup" aria-label="テーマ選択"></div>
+              </section>
+
+              <section class="settings-section hidden" data-cat="anim">
+                <h3>画面切り替えアニメーション</h3>
+                <p class="settings-hint">画面を切り替えたときの動き。下のボタンを押すとその場で試せます。</p>
+                <div class="tx-grid" id="txGrid" role="radiogroup" aria-label="画面切り替え"></div>
+              </section>
+
+              <section class="settings-section hidden" data-cat="subjects">
+                <h3>教科の管理</h3>
+                <p class="settings-hint">教科の追加・削除・色の変更ができます。</p>
+                <div class="subject-color-grid" id="subjectColorGrid"></div>
+                <form class="quick-add quick-add--sm" id="subjectAddForm">
+                  <input type="color" class="subject-add-color" id="subjectAddColor" value="#4F46E5" aria-label="新しい教科の色" />
+                  <input type="text" class="quick-add-input" id="subjectAddName" placeholder="新しい教科名を入力…" autocomplete="off" aria-label="新しい教科名" />
+                  <button type="submit" class="quick-add-btn" id="subjectAddBtn">追加</button>
+                </form>
+              </section>
+
+              <section class="settings-section hidden" data-cat="classes">
+                <h3>学級リスト</h3>
+                <p class="settings-hint">学級は名簿に登録した生徒から自動で作成されます。</p>
+                <div class="classes-list" id="classesList"></div>
+              </section>
+
+              <section class="settings-section hidden" data-cat="lock">
+                <h3>画面ロック</h3>
+                <p class="settings-hint">一定時間操作がないときと、アプリを開いたときにパスコード（数字）で保護します。端末内だけで判定する簡易ロックです。<strong>パスコードを忘れると解除できない</strong>のでご注意ください（その場合はブラウザのサイトデータ削除でリセット＝データも消えます）。</p>
+                <div class="settings-row settings-row--toggle">
+                  <label>画面ロックを使う</label>
+                  <div class="ob-seg lock-seg" id="lockEnableSeg">
+                    <button type="button" data-on="0">オフ</button>
+                    <button type="button" data-on="1">オン</button>
+                  </div>
+                </div>
+                <div id="lockOptions" hidden>
+                  <div class="settings-row">
+                    <label>桁数</label>
+                    <div class="ob-seg lock-seg" id="lockDigitsSeg">
+                      <button type="button" data-d="4">4桁</button>
+                      <button type="button" data-d="6">6桁</button>
+                    </div>
+                  </div>
+                  <div class="settings-row">
+                    <label for="lockTimeoutSel">自動ロックまで</label>
+                    <select id="lockTimeoutSel" class="settings-input">
+                      <option value="1">1分</option>
+                      <option value="3">3分</option>
+                      <option value="5">5分</option>
+                      <option value="10">10分</option>
+                      <option value="30">30分</option>
+                    </select>
+                  </div>
+                  <div class="settings-row" style="border-bottom:none;">
+                    <label>パスコード</label>
+                    <button class="lock-change-btn" id="changePinBtn" type="button">変更する</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-section hidden" data-cat="support">
+                <h3>WEEKYを応援する</h3>
+                <p class="settings-hint">このアプリは無料です。すべての機能は、応援の有無に関わらず使えます。もしよければ、下のQRから PayPay での応援をうれしく思います（任意・見返りはありません）。</p>
+                <div class="donate-card">
+                  <div class="donate-qr-wrap">
+                    <img id="donateQrImg" class="donate-qr" src="donate/paypay-qr.png" alt="PayPay 受け取りQR"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                    <div class="donate-qr-placeholder" style="display:none">
+                      <span class="donate-ph-icon">🖼️</span>
+                      <span class="donate-ph-text">QR画像を準備中</span>
+                      <span class="donate-ph-path">donate/paypay-qr.png</span>
+                    </div>
+                  </div>
+                  <p class="donate-caption">PayPay アプリで読み取ってください</p>
+                </div>
+              </section>
+
+              <section class="settings-section settings-section--feedback hidden" data-cat="feedback">
+                <iframe class="feedback-iframe"
+                  data-tally-src="https://tally.so/embed/EkArx2?dynamicHeight=1"
+                  title="不具合・要望フォーム" loading="lazy">読み込んでいます…</iframe>
+                <p class="settings-hint feedback-offline-note">※ 表示にはネット接続が必要です。出ないときは <a href="https://tally.so/r/EkArx2" target="_blank" rel="noopener noreferrer">別タブで開く</a>。</p>
+              </section>
+
+              <section class="settings-section hidden" data-cat="about">
+                <h3>このアプリについて</h3>
+                <div class="about-app">
+                  <img src="icons/icon-192.png" alt="WEEKY" class="about-icon" />
+                  <div class="about-name">WEEKY</div>
+                  <div class="about-ver" id="aboutVersion">v10.16.41</div>
+                  <p class="settings-hint">授業記録・週案管理アプリ</p>
+                </div>
+
+                <button class="btn-secondary" id="tutReplayBtn" type="button" style="margin:4px 0 8px">🎓 チュートリアルをもう一度見る</button>
+
+                <div class="about-legal">
+                  <p class="about-legal-text">© 2026 WEEKY</p>
+                  <p class="about-legal-text">本アプリおよびその内容（コード・データ・デザインを含む）の無断転載・無断複製・無断持ち出し（再配布）を禁止します。</p>
+                </div>
+
+                <div class="danger-zone">
+                  <h3 class="danger-zone-title">データの完全な削除</h3>
+                  <p class="danger-zone-desc">この端末のWEEKYのデータ（週案・名簿・出席・評価・写真など）をすべて消して、初期状態に戻します。<strong>元に戻せません。</strong>必ず先にバックアップしてください。</p>
+                  <button class="danger-btn" id="wipeDataBtn" type="button">すべてのデータを削除</button>
+                </div>
+              </section>
+
+              <div class="settings-actions">
+                <button class="btn-primary" id="saveSettingsBtn">設定を保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- ── RIGHT CONTEXT PANEL ── -->
+      <aside class="context-panel" id="contextPanel" role="complementary" aria-label="コンテキストパネル">
+
+        <section class="panel-section">
+          <div class="panel-section-header">
+            <h3>ToDo</h3>
+            <button class="panel-section-btn" id="addTodayTodoBtn" aria-label="ToDo を追加">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <ul class="panel-todo-list" id="panelTodoList" role="list"></ul>
+          <p class="panel-empty" id="panelTodoEmpty">ToDo がありません</p>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-section-header"><h3>授業状況</h3></div>
+          <div class="class-status" id="classStatus" aria-live="polite">
+            <div class="class-status-item class-status-item--now">
+              <div class="class-status-dot"></div>
+              <div class="class-status-info">
+                <span class="class-status-badge class-status-badge--now">授業中</span>
+                <span class="class-status-name" id="currentClassName">–</span>
+                <span class="class-status-meta" id="currentClassMeta"></span>
+              </div>
+            </div>
+            <div class="class-status-item class-status-item--next">
+              <div class="class-status-info">
+                <span class="class-status-badge class-status-badge--next">次の授業</span>
+                <span class="class-status-name" id="nextClassName">–</span>
+                <span class="class-status-meta" id="nextClassMeta"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-section-header"><h3>今週</h3></div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-value" id="statLessons">0</span>
+              <span class="stat-label">授業</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="statPhotos">0</span>
+              <span class="stat-label">写真</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="statHandwriting">0</span>
+              <span class="stat-label">手書き</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section support-card" id="supportCard">
+          <button class="support-card-close" aria-label="閉じる" title="閉じる"
+            onclick="document.getElementById('supportCard').style.display='none';try{localStorage.setItem('weeky_support_card_dismissed','1')}catch(e){}">×</button>
+          <div class="support-card-emoji">💛</div>
+          <div class="support-card-title">WEEKYを応援</div>
+          <p class="support-card-text">よければPayPayで応援を。任意・見返りはありません。</p>
+          <button class="support-card-btn"
+            onclick="switchView('settings');showSettingsCategory('support')">応援する</button>
+        </section>
+        <script>try{if(localStorage.getItem('weeky_support_card_dismissed'))document.getElementById('supportCard').style.display='none';}catch(e){}</script>
+
+      </aside>
+    </div><!-- /content-area -->
+    <span id="autosaveStatus" hidden></span>
+
+  </div><!-- /main-column -->
+</div><!-- /app-shell -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     LESSON MODAL
+════════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="lessonModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="lessonModalTitle" hidden>
+  <div class="modal modal--lesson" id="lessonModal">
+    <h2 class="sr-only" id="lessonModalTitle">授業編集</h2>
+
+    <div class="lesson-modal-body">
+      <!-- LEFT: 授業情報 -->
+      <div class="lm-col lm-col--info">
+        <div class="lm-period" id="lessonPeriodInfo"></div>
+        <div class="lm-attendance" id="lmAttendance" hidden></div>
+        <div class="lm-field">
+          <label for="lessonSubject">教科</label>
+          <select class="lm-select" id="lessonSubject" aria-label="教科"></select>
+        </div>
+        <div class="lm-field">
+          <label for="lessonClass">学級</label>
+          <select class="lm-select" id="lessonClass" aria-label="学級"></select>
+        </div>
+        <div class="lm-field">
+          <label for="lessonTitle">授業タイトル</label>
+          <input type="text" id="lessonTitle" class="lm-input" placeholder="例: 分数の足し算" />
+        </div>
+        <div class="lm-field">
+          <label>タグ</label>
+          <div class="tag-input-area" id="tagInputArea">
+            <div class="tags-container" id="tagsContainer"></div>
+            <input type="text" class="tag-input" id="tagInput" placeholder="タグを追加して Enter" aria-label="タグ入力" />
+          </div>
+        </div>
+        <div class="lm-field">
+          <label>写真</label>
+          <div class="photo-grid photo-grid--modal" id="modalPhotoGrid" role="list">
+            <button class="photo-add-btn" id="addLessonPhotoBtn" aria-label="写真を追加">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="lm-spacer"></div>
+        <div class="modal-move-section">
+          <button class="btn-ghost btn-sm" id="moveLessonBtn">別の時限へ移動</button>
+        </div>
+      </div>
+
+      <!-- RIGHT: ノート or 手書き -->
+      <div class="lm-col lm-col--editor">
+        <div class="lm-editor-head">
+          <span class="lm-editor-label" id="lmEditorLabel">ノート</span>
+          <div class="lm-hw-switch-wrap">
+            <span class="lm-hw-switch-text">手書き</span>
+            <button class="ios-switch" id="hwModeSwitch" role="switch" aria-checked="false" aria-label="手書きモード">
+              <span class="ios-switch-knob"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- テキストモード -->
+        <textarea id="lessonNote" class="lm-note" placeholder="授業メモ、準備物、気づきなど…"></textarea>
+
+        <!-- 手書きモード -->
+        <div class="lm-hw hidden" id="lmHw">
+          <div class="lm-hw-toolbar">
+            <div class="lm-hw-tools">
+              <button class="lm-hw-tool active" id="lmHwPen" aria-label="ペン" aria-pressed="true">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M3 15l3-1 9-9-2-2-9 9-1 3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="lm-hw-tool" id="lmHwEraser" aria-label="消しゴム" aria-pressed="false">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M3 14h12M9 4L4 9l3 3 5-5-3-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <div class="lm-hw-colors" id="lmHwColors">
+              <button class="lm-hw-color active" data-color="#1a1a1a" style="background:#1a1a1a" aria-label="黒"></button>
+              <button class="lm-hw-color" data-color="#e11d48" style="background:#e11d48" aria-label="赤"></button>
+              <button class="lm-hw-color" data-color="#2563eb" style="background:#2563eb" aria-label="青"></button>
+              <button class="lm-hw-color" data-color="#16a34a" style="background:#16a34a" aria-label="緑"></button>
+            </div>
+            <button class="lm-hw-tool" id="lmHwUndo" aria-label="元に戻す" title="元に戻す">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 14L4 9l5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h11a5 5 0 0 1 0 10h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="lm-hw-tool" id="lmHwRedo" aria-label="やり直す" title="やり直す">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 14l5-5-5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9H9a5 5 0 0 0 0 10h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="lm-hw-tool" id="lmHwClear" aria-label="クリア">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M5 4V3h6v1M6 7v5M10 7v5M3 4l1 9h8l1-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="lm-hw-pages">
+              <button class="lm-hw-tool" id="lmHwPrev" aria-label="前のページ">‹</button>
+              <span class="lm-hw-pageinfo" id="lmHwPageInfo">1/1</span>
+              <button class="lm-hw-tool" id="lmHwNext" aria-label="次のページ">›</button>
+              <button class="lm-hw-tool" id="lmHwAddPage" aria-label="ページ追加">+</button>
+            </div>
+            <button class="lm-hw-fs" id="hwFullscreenBtn" aria-label="全画面で編集">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div class="lm-hw-canvas-wrap" id="lmHwCanvasWrap">
+            <canvas id="lmHwCanvas" aria-label="手書き入力エリア"></canvas>
+            <div class="hw-dots" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="modal-footer lm-footer">
+      <span class="autosave-indicator" id="autosaveIndicator" aria-live="polite"></span>
+      <button class="btn-danger lm-icon-btn" id="lessonDeleteBtn" aria-label="この授業を削除" title="この授業を削除">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M4 7h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M9.5 7V5.5a1.5 1.5 0 0 1 1.5-1.5h2a1.5 1.5 0 0 1 1.5 1.5V7" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M6.5 7l.9 12.1A1.5 1.5 0 0 0 8.9 20.5h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M10 11v5.5M14 11v5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="btn-primary lm-save-btn" id="lessonSaveBtn" aria-label="閉じる" title="閉じる">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+          <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span>閉じる</span>
+      </button>
+    </footer>
+  </div>
+</div>
+
+<!-- 天気モーダル -->
+<div class="modal-backdrop" id="weatherModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="weatherModalTitle" hidden>
+  <div class="modal modal--weather">
+    <header class="modal-header">
+      <h2 class="modal-title" id="weatherModalTitle">時間別天気予報</h2>
+      <button class="modal-close-btn" id="weatherModalClose" aria-label="閉じる">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+    <div class="modal-body" id="weatherDetail"></div>
+  </div>
+</div>
+
+<!-- 生徒編集モーダル -->
+<div class="modal-backdrop" id="studentModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="studentModalTitle" hidden>
+  <div class="modal modal--student">
+    <header class="modal-header">
+      <h2 class="modal-title" id="studentModalTitle">生徒を編集</h2>
+      <button class="modal-close-btn" id="studentModalClose" aria-label="閉じる">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <div class="student-id-grid">
+        <div class="form-field">
+          <label class="form-label" for="studentYear">年度</label>
+          <input type="number" class="form-input" id="studentYear" inputmode="numeric" placeholder="2026" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="studentGrade">学年</label>
+          <input type="number" class="form-input" id="studentGrade" min="1" max="9" inputmode="numeric" placeholder="3" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="studentClassNo">組</label>
+          <input type="number" class="form-input" id="studentClassNo" min="1" inputmode="numeric" placeholder="2" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="studentNumber">出席番号</label>
+          <input type="number" class="form-input" id="studentNumber" min="1" inputmode="numeric" placeholder="5" />
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="studentName">氏名</label>
+        <input type="text" class="form-input" id="studentName" placeholder="山田 太郎" />
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="studentKana">よみがな</label>
+        <input type="text" class="form-input" id="studentKana" placeholder="やまだ たろう" />
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="studentNote">メモ</label>
+        <textarea class="form-textarea" id="studentNote" rows="2" placeholder="配慮事項など"></textarea>
+      </div>
+      <div class="form-field">
+        <label class="form-label">生徒ID（QRコード用）</label>
+        <p class="settings-hint" id="studentIdHint">年度・学年・組・出席番号から自動で作られます（旧出席アプリと同じ形式）。</p>
+        <div class="qr-block">
+          <div class="qr-img-wrap" id="studentQrWrap"></div>
+          <div class="qr-info">
+            <input type="text" class="qr-id-input" id="studentQrId" readonly aria-label="生徒ID（タップで全選択）" />
+            <div class="qr-actions">
+              <button class="btn-secondary btn-sm" id="copyQrIdBtn" type="button">IDをコピー</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="modal-footer">
+      <button class="btn-danger" id="deleteStudentBtn">削除</button>
+      <span style="flex:1"></span>
+      <button class="btn-ghost" id="studentCancelBtn">キャンセル</button>
+      <button class="btn-student" id="saveStudentBtn">保存</button>
+    </footer>
+  </div>
+</div>
+
+<!-- 学校管理モーダル -->
+<div class="modal-backdrop" id="schoolModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="schoolModalTitle" hidden>
+  <div class="modal modal--dialog">
+    <header class="modal-header">
+      <h2 class="modal-title" id="schoolModalTitle">学校の管理</h2>
+      <button class="modal-close-btn" id="schoolModalClose" aria-label="閉じる">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <p class="settings-hint">学校コードは生徒IDに使われます（旧出席アプリと同じ形式）。既存のQRと合わせるため、以前と同じコードを入力してください。</p>
+      <div class="schools-list" id="schoolsList"></div>
+      <form class="quick-add quick-add--sm" id="schoolAddForm">
+        <input type="text" class="quick-add-input" id="schoolAddName" placeholder="学校名を追加…" autocomplete="off" />
+        <input type="text" class="school-code-input" id="schoolAddCode" placeholder="コード" maxlength="3" inputmode="numeric" aria-label="学校コード" />
+        <button type="submit" class="quick-add-btn">追加</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 学級管理モーダル -->
+<div class="modal-backdrop" id="classModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="classModalTitle" hidden>
+  <div class="modal modal--dialog">
+    <header class="modal-header">
+      <h2 class="modal-title" id="classModalTitle">学級の管理</h2>
+      <button class="modal-close-btn" id="classModalClose" aria-label="閉じる">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <p class="settings-hint" id="classModalSchool"></p>
+      <div class="schools-list" id="classManageList"></div>
+      <form class="quick-add quick-add--sm" id="classAddForm">
+        <input type="text" class="quick-add-input" id="classAddText" placeholder="例: 3年2組 / 3-2" autocomplete="off" aria-label="学級名" />
+        <input type="number" class="school-code-input" id="classAddYear" placeholder="年度" inputmode="numeric" aria-label="年度" style="width:72px" />
+        <button type="submit" class="quick-add-btn">追加</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ToDo 編集モーダル -->
+<div class="modal-backdrop" id="todoEditBackdrop" role="dialog" aria-modal="true" hidden>
+  <div class="modal modal--dialog">
+    <div class="modal-body">
+      <h3 class="todo-edit-title">ToDo を編集</h3>
+      <label class="todo-edit-label">内容</label>
+      <input type="text" id="todoEditText" class="form-input" />
+      <label class="todo-edit-label">期限</label>
+      <input type="date" id="todoEditDate" class="form-input" />
+      <label class="todo-edit-label">タグ（スペース区切りで複数可）</label>
+      <input type="text" id="todoEditTag" class="form-input" placeholder="例：学年 提出" />
+    </div>
+    <footer class="modal-footer">
+      <button class="btn-ghost" id="todoEditCancel">キャンセル</button>
+      <button class="btn-primary" id="todoEditSave">保存</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ═══ QR受付（出席）オーバーレイ ═══ -->
+<div class="reception-overlay" id="receptionOverlay" hidden>
+  <header class="rcp-header">
+    <div class="rcp-setup">
+      <input type="date" id="rcpDate" class="rcp-date" aria-label="日付" />
+      <select id="rcpPeriod" class="rcp-period" aria-label="時限">
+        <option value="1">1時限</option><option value="2">2時限</option>
+        <option value="3">3時限</option><option value="4">4時限</option>
+        <option value="5">5時限</option><option value="6">6時限</option>
+        <option value="after">放課後</option>
+      </select>
+      <select id="rcpSchool" class="rcp-school" aria-label="学校"></select>
+      <select id="rcpClass" class="rcp-class" aria-label="学級"></select>
+    </div>
+    <button class="rcp-close" id="rcpClose" aria-label="受付を終了">受付を終了</button>
+  </header>
+
+  <div class="rcp-body">
+    <!-- 中央：QRスキャン（生徒は自分のQRをかざすだけ） -->
+    <div class="rcp-scanmain">
+      <div class="rcp-scan-pulse" aria-hidden="true">
+        <div class="rcp-scan-icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none"><path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 12h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+      <div class="rcp-scan-big">QRコードを読み取ってください</div>
+      <input type="text" id="rcpScanInput" class="rcp-scan-input" placeholder="生徒ID" autocomplete="off" inputmode="numeric" aria-label="生徒ID" />
+      <div class="rcp-scan-hint" id="rcpScanHint">外付けリーダーをかざすか、生徒IDを入力して Enter</div>
+      <button class="rcp-cam-btn" id="rcpCamBtn" type="button">📷 カメラで読み取る</button>
+      <div class="rcp-cam" id="rcpCam" hidden>
+        <video id="rcpCamVideo" playsinline muted></video>
+        <div class="rcp-cam-frame" aria-hidden="true"></div>
+        <div class="rcp-cam-actions">
+          <button class="rcp-cam-stop" id="rcpCamFlip" type="button">🔄 前面／背面</button>
+          <button class="rcp-cam-stop" id="rcpCamStop" type="button">カメラを止める</button>
+        </div>
+      </div>
+      <canvas id="rcpCamCanvas" hidden></canvas>
+    </div>
+    <!-- 右：名簿（受付済み／未受付）。修正は先生のみ -->
+    <aside class="rcp-side">
+      <div class="rcp-side-sec rcp-side-sec--present">
+        <h3>受付済み <b id="rcpPresentN">0</b></h3>
+        <div class="rcp-side-list" id="rcpPresentList"></div>
+      </div>
+      <div class="rcp-side-sec">
+        <h3>未受付 <b id="rcpRemainN">0</b></h3>
+        <div class="rcp-side-list" id="rcpRemainList"></div>
+      </div>
+    </aside>
+  </div>
+  <!-- 受付成功：前面に一瞬カッコよく出してすぐ消える -->
+  <div class="rcp-burst" id="rcpBurst" hidden>
+    <div class="rcp-burst-card">
+      <div class="rcp-burst-ring"></div>
+      <div class="rcp-burst-check" id="rcpBurstCheck">✓</div>
+      <div class="rcp-burst-name" id="rcpBurstName"></div>
+      <div class="rcp-burst-msg" id="rcpBurstMsg">出席しました</div>
+    </div>
+  </div>
+</div>
+
+<!-- 忘れ物登録ポップアップ -->
+<div class="modal-backdrop" id="forgotModalBackdrop" role="dialog" aria-modal="true" hidden>
+  <div class="modal modal--dialog">
+    <div class="modal-body">
+      <div class="forgot-student">
+        <span class="forgot-name" id="forgotName"></span>
+        <span class="forgot-id" id="forgotId"></span>
+      </div>
+      <p class="settings-hint">忘れ物があればタップ（複数可）。なければそのまま出席。</p>
+      <div class="forgot-grid" id="forgotGrid"></div>
+      <input type="text" id="forgotMemo" class="form-input" placeholder="その他・メモ" style="margin-top:10px" />
+    </div>
+    <footer class="modal-footer">
+      <button class="btn-ghost" id="forgotCancelBtn">キャンセル</button>
+      <button class="btn-student" id="forgotPresentBtn">✓ 出席</button>
+    </footer>
+  </div>
+</div>
+
+<!-- 出欠あとから変更ポップアップ（教科別マトリクスのセルをタップ） -->
+<div class="modal-backdrop" id="attEditBackdrop" role="dialog" aria-modal="true" hidden>
+  <div class="modal modal--dialog">
+    <div class="modal-body">
+      <div class="forgot-student">
+        <span class="forgot-name" id="attEditName"></span>
+        <span class="forgot-id" id="attEditInfo"></span>
+      </div>
+      <p class="settings-hint">出欠を変更できます。忘れ物があれば項目をタップ（複数可）して「出席」。</p>
+      <div class="forgot-grid" id="attEditGrid"></div>
+    </div>
+    <footer class="modal-footer att-edit-footer">
+      <button class="btn-ghost" id="attEditCancel">キャンセル</button>
+      <button class="btn-ghost att-edit-absent" id="attEditAbsent">欠席にする</button>
+      <button class="btn-student" id="attEditPresent">出席にする</button>
+    </footer>
+  </div>
+</div>
+
+<!-- 忘れ物の項目 編集モーダル（出席タブから開く） -->
+<div class="modal-backdrop" id="forgotItemsModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="forgotItemsModalTitle" hidden>
+  <div class="modal modal--dialog">
+    <header class="modal-header">
+      <h2 class="modal-title" id="forgotItemsModalTitle">忘れ物の項目</h2>
+      <button class="modal-close-btn" id="forgotItemsModalClose" aria-label="閉じる">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <p class="settings-hint">QR受付の画面でタップして登録できる「忘れ物」の項目を編集できます。</p>
+      <div class="subject-color-grid" id="forgotEditList"></div>
+      <form class="quick-add quick-add--sm" id="forgotAddForm">
+        <input type="text" class="quick-add-input" id="forgotAddName" placeholder="新しい忘れ物の項目…" autocomplete="off" aria-label="新しい忘れ物の項目" />
+        <button type="submit" class="quick-add-btn">追加</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 名簿 一括貼り付けモーダル -->
+<div class="modal-backdrop" id="pasteModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="pasteModalTitle" hidden>
+  <div class="modal modal--dialog">
+    <header class="modal-header">
+      <h2 class="modal-title" id="pasteModalTitle">名簿を貼り付け</h2>
+      <button class="modal-close-btn" id="pasteModalClose" aria-label="閉じる">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <p class="settings-hint" id="pasteModalHint">名前を1行に1人ずつ貼り付けてください。出席番号1番から順に登録されます（「1　山田太郎」のように番号付きでもOK）。</p>
+      <div class="paste-startnum">
+        <label for="pasteStartNum">何番から入れる？</label>
+        <input type="number" id="pasteStartNum" min="1" value="1" inputmode="numeric" />
+      </div>
+      <textarea id="pasteTextarea" class="form-textarea" rows="12" placeholder="山田 太郎&#10;佐藤 花子&#10;鈴木 一郎&#10;…"></textarea>
+    </div>
+    <footer class="modal-footer">
+      <span class="autosave-indicator" id="pastePreview"></span>
+      <button class="btn-ghost" id="pasteCancelBtn">キャンセル</button>
+      <button class="btn-student" id="pasteApplyBtn">この内容で登録</button>
+    </footer>
+  </div>
+</div>
+
+<input type="file" id="photoFileInput" accept="image/*" multiple hidden />
+<input type="file" id="importFileInput" accept=".json" hidden />
+
+<!-- ═══════════════════════════════════════════════════════════
+     CUSTOM PROMPT / CONFIRM DIALOG
+     (native prompt()/confirm() are blocked in PWA/sandboxed contexts)
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="dialogBackdrop" role="dialog" aria-modal="true" aria-labelledby="dialogTitle" hidden>
+  <div class="modal modal--dialog">
+    <div class="modal-body dialog-body">
+      <span class="dialog-icon" id="dialogIcon" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </span>
+      <h2 class="dialog-title" id="dialogTitle"></h2>
+      <input type="text" id="dialogInput" class="dialog-input" hidden />
+    </div>
+    <footer class="modal-footer dialog-footer">
+      <button class="btn-ghost btn-lg dialog-btn" id="dialogCancelBtn">キャンセル</button>
+      <button class="btn-primary btn-lg dialog-btn" id="dialogOkBtn">OK</button>
+    </footer>
+  </div>
+</div>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
+<script async src="https://tally.so/widgets/embed.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="app.js?v=11.0.0"></script>
+</body>
+</html>
