@@ -56,6 +56,12 @@
    アイコン（SVGパスの直接描画、文字グリフではないためフォント依存なし）で表示。
    タイトルの最大行数（1行 or 2行）は固定値ではなく、学級バッジの高さ・アイコン行の
    有無から毎回その場で計算し、絶対にセルからはみ出さないようにしている。
+   v11.2.2：見た目の微調整（ユーザー要望）。①学級バッジの文字がバッジの中心から
+   ずれていたのを、フォントの実測メトリクス（heightAtSize）で縦横とも正確に中央
+   揃えするよう修正。②授業タイトル（l.title）をさらに拡大（7.5→15pt、約2倍）し、
+   位置も少し下げた。③メモ／手書き／添付のアイコン行を、文字と上下中央が揃うよう
+   修正（アイコンはdrawSvgPathのローカル座標系の中心とテキストの実測baselineを
+   突き合わせて算出）。下端の余白も5→9ptに拡げ、枠線ぎりぎりだった問題を解消。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -63,7 +69,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.2.1';
+const APP_VERSION = '11.2.2';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -6263,6 +6269,18 @@ async function buildWeeklyPdfLib(pdfDoc) {
     else if (kind === 'clip') { page.drawSvgPath(CLIP_ICON, opt); }
   };
 
+  // v11.2.2：フォントの実測メトリクス（上端/下端）を使って正確に上下中央揃えする
+  // ためのヘルパー。heightAtSize(size,{descender:false})でbaseline→上端、
+  // heightAtSize(size)でbaseline→下端(descender込み)が取れる。
+  const ascH  = (font, size) => font.heightAtSize(size, { descender: false });
+  const fullH = (font, size) => font.heightAtSize(size);
+  const descH = (font, size) => fullH(font, size) - ascH(font, size);
+  const centerBaseline1 = (font, size, boxCenterY) => boxCenterY - (ascH(font, size) - descH(font, size)) / 2;
+  const centerBaselineBlock = (font, size, lineH, numLines, boxCenterY) => {
+    const blockH = ascH(font, size) + (numLines - 1) * lineH + descH(font, size);
+    return boxCenterY + blockH / 2 - ascH(font, size);
+  };
+
   // ── 授業コマ／放課後コマ共通の描画（教科名／学級バッジ／タイトル／メモ等アイコン） ──
   const drawLessonCell = (cx, topY, cellH, date, period) => {
     page.drawRectangle({ x: cx, y: topY - cellH, width: DAY_W, height: cellH, borderColor: colorBorder, borderWidth: 0.5 });
@@ -6280,51 +6298,71 @@ async function buildWeeklyPdfLib(pdfDoc) {
     if (subj) page.drawText(subj, { x: cx + pad, y: topY - 11, size: 8.5, font: fontB, color });
 
     // v11.2.1：学級名は教科名の下に積む行から、セル右上の独立したバッジへ変更
-    // （ユーザー要望）。フォントサイズも6.5→7.5ptへ拡大。右寄せ・背景＋枠付きの
-    // バッジにすることで、教科名と横に並んでも視認しやすくした。
+    // （ユーザー要望）。v11.2.2：バッジ内テキストが左寄り・上寄りにずれていた
+    // のを、実測フォントメトリクスで縦横ともにバッジの中心に来るよう修正。
     let classRowH = 12;
     if (l.className) {
-      const lines = _pdfLibWrap(fontR, l.className, 7.5, DAY_W * 0.62, 2);
-      const lineH = 9.5;
-      const badgeW = Math.max(...lines.map(ln => fontR.widthOfTextAtSize(ln, 7.5))) + 7;
-      const badgeH = lines.length * lineH + 3;
+      const clsSize = 7.5;
+      const lines = _pdfLibWrap(fontR, l.className, clsSize, DAY_W * 0.62, 2);
+      const lineH = clsSize * 1.25;
+      const padV = 4, padH = 4;
+      const badgeW = Math.max(...lines.map(ln => fontR.widthOfTextAtSize(ln, clsSize))) + padH * 2;
+      const badgeH = lines.length * lineH + padV * 2;
       const badgeX = cx + DAY_W - pad - badgeW;
       const badgeTop = topY - 5;
       const badgeY = badgeTop - badgeH;
+      const boxCenterY = badgeY + badgeH / 2;
       page.drawRectangle({ x: badgeX, y: badgeY, width: badgeW, height: badgeH, color: rgb(1, 1, 1), opacity: 0.8, borderColor: colorBorder, borderWidth: 0.6 });
-      lines.forEach((ln, i) => page.drawText(ln, { x: badgeX + 3.5, y: badgeTop - lineH * (i + 1) + 2.5, size: 7.5, font: fontR, color: colorSub }));
+      const firstBaseline = centerBaselineBlock(fontR, clsSize, lineH, lines.length, boxCenterY);
+      lines.forEach((ln, i) => {
+        const lw = fontR.widthOfTextAtSize(ln, clsSize);
+        page.drawText(ln, { x: badgeX + (badgeW - lw) / 2, y: firstBaseline - i * lineH, size: clsSize, font: fontR, color: colorSub });
+      });
       classRowH = Math.max(classRowH, badgeH + 5);
     }
 
-    const cy = topY - classRowH - 4;
+    // v11.2.2：タイトルを7.5→15pt（約2倍）に拡大。位置も少し下げる（gap 4→7）。
+    const TITLE_SIZE = 15;
+    const TITLE_LINE_H = TITLE_SIZE * 1.2;
+    const cy = topY - classRowH - 7;
     const flags = [];
     if (hasNote) flags.push({ kind: 'note', label: 'メモ' });
     if (hasHw) flags.push({ kind: 'hw', label: '手書き' });
     if (hasPhoto) flags.push({ kind: 'clip', label: '添付' });
+    const ICON_ROW_MARGIN = 9;               // セル下枠からアイコン行下端までの余白（旧5→9）
+    const iconRowH = flags.length ? fullH(fontR, 6.5) : 0;
+    const iconReserve = flags.length ? ICON_ROW_MARGIN + iconRowH + 2 : 4;
 
     // v11.2.1：タイトルの最大行数は固定値ではなく、実際に残っている高さから
-    // その都度計算する（学級バッジが2行になった分・アイコン行の有無で必要な
-    // 余白は毎回変わるため）。2行ぶん(18pt)+念のための余白(2pt)が入るなら2行、
-    // 入らなければ1行に減らして省略記号に任せる＝どのケースでも絶対に
-    // セルからはみ出さない。
+    // その都度計算する（学級バッジの高さ・アイコン行の有無・タイトル文字サイズが
+    // 毎回変わるため）。入るなら2行、入らなければ1行に減らして省略記号に任せる
+    // ＝どのケースでも絶対にセルからはみ出さない。
     if (l.title) {
-      const titleBottom = topY - cellH + (flags.length ? 14 : 4);
+      const titleBottom = topY - cellH + iconReserve;
       const availableH = cy - titleBottom;
-      const maxTtlLines = availableH >= 20 ? 2 : 1;
-      const lines = _pdfLibWrap(fontR, l.title, 7.5, DAY_W - pad * 2, maxTtlLines);
-      lines.forEach((ln, i) => page.drawText(ln, { x: cx + pad, y: cy - i * 9, size: 7.5, font: fontR, color: colorInk }));
+      const maxTtlLines = availableH >= TITLE_LINE_H * 2 + 2 ? 2 : 1;
+      const lines = _pdfLibWrap(fontR, l.title, TITLE_SIZE, DAY_W - pad * 2, maxTtlLines);
+      lines.forEach((ln, i) => page.drawText(ln, { x: cx + pad, y: cy - i * TITLE_LINE_H, size: TITLE_SIZE, font: fontR, color: colorInk }));
     }
 
-    // ── メモ／手書き／添付：短い言葉＋ベクターアイコンを最下段に表示 ──
+    // ── メモ／手書き／添付：短い言葉＋ベクターアイコンを最下段に、文字と上下中央
+    // 揃えで表示する（v11.2.2：以前はアイコンと文字の基準線がバラバラだった）。
     if (flags.length) {
-      const iconScale = 0.5;
-      const fy = topY - cellH + 5;
+      const labelSize = 6.5;
+      const iconScale = labelSize / 16 * 1.15;
+      const rowBottom = topY - cellH + ICON_ROW_MARGIN;
+      const rowCenterY = rowBottom + iconRowH / 2;
+      const labelBaseline = centerBaseline1(fontR, labelSize, rowCenterY);
+      // drawSvgPathのアンカーは、アイコンパス自身のローカル座標系のy=0の位置に
+      // 相当する（アイコンの絵柄はローカルy=3〜13あたりに描かれている）。
+      // ローカル中心(≈8)がrowCenterYに来るよう、8*scale分だけ上にずらして補正する。
+      const iconAnchorY = rowCenterY + 8 * iconScale;
       let fx = cx + pad;
       flags.forEach(f => {
-        drawFlagIcon(f.kind, fx, fy + 16 * iconScale * 0.35, iconScale, colorSub);
+        drawFlagIcon(f.kind, fx, iconAnchorY, iconScale, colorSub);
         fx += 16 * iconScale + 3;
-        page.drawText(f.label, { x: fx, y: fy, size: 6, font: fontR, color: colorSub });
-        fx += fontR.widthOfTextAtSize(f.label, 6) + 8;
+        page.drawText(f.label, { x: fx, y: labelBaseline, size: labelSize, font: fontR, color: colorSub });
+        fx += fontR.widthOfTextAtSize(f.label, labelSize) + 8;
       });
     }
   };
