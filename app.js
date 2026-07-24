@@ -24,6 +24,16 @@
    （フォントサイズ・HEADER_H/THEAD_H/SPECIAL_Hは据え置き＝あえて変えない）。
    キャンバス自体を広げてセルの余白を増やし、いったん見切れが起きない状態を作った
    上で、文字サイズをユーザーの希望値まで段階的に引き上げていく方針の第一段階。
+   →実機で「PDFの作成に失敗しました」エラーが発生（Mistakes M-14）。scale3×幅3390pxは
+   ラスタライズ後の総ピクセル数が約72Mに達し、キャンバスの上限を超えていたと判明。
+   v11.1.6：上記クラッシュを受けPDF_PAGE_W_PXを1040に緊急復旧。根本原因（教科名＋学級
+   バッジ＋タイトルの3要素が固定高さセルに収まらない）に対する構造的な対策として、
+   「メモあり」表示を独立行(.pw-note-flag)から教科名右肩の小アイコン(.pw-note-dot)に
+   変更。さらにTHEAD_H/SPECIAL_Hの余りすぎていた余白を48→40pxに詰め、浮いた分を
+   PDF_PAGE_W_PX 1040→1230px（scale3で最終幅3690px・総ピクセル数約9.8M＝1040基準の
+   6.78Mから緩やかな増加で安全域）としてperiodH（授業セル高さ）に再配分。長い学級名
+   ×長いタイトル×メモありの最悪ケースでも scrollHeight===clientHeight（余白0で完全
+   収納）を実機相当のブラウザDOM計測で確認済み（全35セルでoverflow発生なし）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -31,7 +41,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.1.5';
+const APP_VERSION = '11.1.6';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -5774,6 +5784,9 @@ const PRINT_COMPONENT_CSS = `
      flexベースラインが下端へずれて隣のクラスピルも下にずれる。教科名は短いので
      クリップ不要。折り返さず1行で出す。 */
   .pw-subj { font-weight: 800; font-size: 13px; line-height: 18px; letter-spacing: .01em; flex: 0 1 auto; white-space: nowrap; }
+  /* メモありは独立行をやめ、教科名の右肩に小さいアイコンで表示（v11.1.6）。
+     縦方向を1行ぶん節約し、タイトルに使える高さを確保するため。 */
+  .pw-note-dot { margin-left: 3px; font-size: 10px; color: #d97706; letter-spacing: 0; }
   /* 学校名つきの長い学級名は最大2行まで折り返して表示し、それでも入りきらない分は
      省略（行の高さは常に一定を優先）。line-height は教科名と同じ 18px に揃える。 */
   .pw-cls  { flex: 0 1 auto; max-width: 100%; font-size: 10px; color: #475569; word-break: break-word; line-height: 18px;
@@ -5894,7 +5907,9 @@ function buildWeeklyPrintHtml(unit = 'px') {
   const isMm = unit === 'mm';
   const toU = px => isMm ? +(px / PDF_PX_PER_MM).toFixed(2) : Math.round(px);
   const suf = isMm ? 'mm' : 'px';
-  const HEADER_H = 60, THEAD_H = 48, SPECIAL_H = 48;   // デザインpx（行事・昼・放課後は共通）
+  const HEADER_H = 60, THEAD_H = 40, SPECIAL_H = 40;   // デザインpx（行事・昼・放課後は共通）
+  // v11.1.6：THEAD_H/SPECIAL_Hは内容(短い日付・行事文)に対して余裕がありすぎたため
+  // 縮小し、浮いた分をperiodH（授業セル）に回す（下記PDF_PAGE_W_PX拡大とあわせて対応）。
   const fixedTotal = HEADER_H + THEAD_H + SPECIAL_H * 3; // 行事＋昼＋放課後の3行ぶん
   const periodH = Math.max(50, (PDF_PAGE_H_PX - fixedTotal) / periods);
   const sheetW = isMm ? PDF_CONTENT_W_MM : PDF_PAGE_W_PX;
@@ -5913,13 +5928,17 @@ function buildWeeklyPrintHtml(unit = 'px') {
     const subj = getSubjectById(l.subjectId)?.name || '';
     const color = getSubjectColor(l.subjectId);
     const hasNote = !!(l.note && l.note.trim());
+    // v11.1.6：「メモあり」を独立した1行(.pw-note-flag)からやめ、教科名の右肩に
+    // 小さいアイコンで表示するよう変更。固定高さのセルに教科名+学級バッジ／
+    // タイトル／メモ表示の3要素を積むと、学級名が2行折返し＋タイトル2行の
+    // ときに収まりきらずタイトルの下半分が見切れる不具合があった。メモ表示を
+    // 1行ぶん丸ごと削ることで、タイトルに使える高さを常に確保する。
     return `<div class="pw-gc pw-lesson" style="background:${hexA(color, 0.10)}; border-left:4px solid ${color}">
       <div class="pw-cell-head">
-        <span class="pw-subj" style="color:${color}">${escHtml(subj)}</span>
+        <span class="pw-subj" style="color:${color}">${escHtml(subj)}${hasNote ? '<span class="pw-note-dot" title="メモあり">✎</span>' : ''}</span>
         ${l.className ? `<span class="pw-cls">${escHtml(l.className)}</span>` : ''}
       </div>
       ${l.title ? `<div class="pw-ttl">${escHtml(l.title)}</div>` : ''}
-      ${hasNote ? `<div class="pw-note-flag">✎ メモあり</div>` : ''}
     </div>`;
   };
 
@@ -6045,7 +6064,10 @@ async function buildDetailPrintHtml() {
 /* ═══ PDFダウンロード（html2canvas + jsPDF）═══
    印刷ダイアログを使わず、A4横のPDFファイルを直接ダウンロードする。
    （iOS Safariは @page の横向きを無視するため、印刷経由では横向きにできない） */
-const PDF_PAGE_W_PX = 3390;                         // A4横の内容幅（px相当）
+const PDF_PAGE_W_PX = 1230;                         // A4横の内容幅（px相当）
+// v11.1.6：1040→1230。1040*scale3=3120pxは実績あり安全、3390*scale3=10170px
+// (総ピクセル数約72M)は実機でPDF生成失敗（キャンバス上限超過）。1230*scale3=3690px
+// (総ピクセル数約9.8M)は1040基準からの増加が緩やかで安全域に収まる見込み。
 const PDF_A4 = { w: 297, h: 210, margin: 5 };       // mm（上下左右5mm余白）
 const PDF_CONTENT_W_MM = PDF_A4.w - PDF_A4.margin * 2;
 const PDF_CONTENT_H_MM = PDF_A4.h - PDF_A4.margin * 2;
