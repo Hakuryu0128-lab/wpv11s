@@ -50,6 +50,12 @@
    NotoSansJPをvendorに同梱しsubset:falseで丸ごと埋め込む（subset:trueだと
    このOTFはグリフが破損する不具合をpoppler実測で確認したため）。詳細メモPDF
    は実害報告がなく今回は対象外、既存のhtml2canvas経由のまま。
+   v11.2.1：見た目の調整（ユーザー要望）。①タイトル文字を13→18ptに拡大。
+   ②学級名を教科名の下から「セル右上の独立バッジ」に変更し、6.5→7.5ptに拡大、
+   背景＋枠を追加。③メモ／手書き／添付の有無をセル最下段に短い言葉＋ベクター
+   アイコン（SVGパスの直接描画、文字グリフではないためフォント依存なし）で表示。
+   タイトルの最大行数（1行 or 2行）は固定値ではなく、学級バッジの高さ・アイコン行の
+   有無から毎回その場で計算し、絶対にセルからはみ出さないようにしている。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -57,7 +63,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.2.0';
+const APP_VERSION = '11.2.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -6198,7 +6204,7 @@ async function buildWeeklyPdfLib(pdfDoc) {
   // ── header（タイトル＋期間／担任・学校名） ──
   const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`;
   const titleText = `週案表　${start.getFullYear()}年 ${fmt(start)}（月）〜 ${fmt(addDays(start, 4))}（金）`;
-  page.drawText(titleText, { x: MARGIN, y: y - 17, size: 13, font: fontB, color: colorInk });
+  page.drawText(titleText, { x: MARGIN, y: y - 19, size: 18, font: fontB, color: colorInk }); // v11.2.1：13→18pt
   const teacherName = state.settings.teacherName || '';
   const schoolName = state.settings.schoolName || '';
   const w1 = teacherName ? fontB.widthOfTextAtSize(teacherName, 10) : 0;
@@ -6238,40 +6244,88 @@ async function buildWeeklyPdfLib(pdfDoc) {
   });
   drawSpecialRow('行事', colorLabelBg, colorSub, eventsByDay);
 
-  // ── 授業コマ／放課後コマ共通の描画（教科名＋メモ印＋学級バッジ＋タイトル） ──
+  // v11.2.1：メモ／手書き／添付の有無を示すアイコン。文字グリフ(絵文字)は使わず
+  // SVGパスをそのままベクター図形として描画する＝フォント依存ゼロ（Mistakes M-18の
+  // 教訓：✎などの文字グリフは端末のフォールバックフォントに無いと四角い代替表示
+  // (tofu box)になり、これが過去の「謎の帯」の正体だった可能性が高い）。
+  // パスは既存UIのtile-icon（note/hw/clip）と同じ意匠に揃えてある。
+  const NOTE_ICON_OUTER = 'M3 3h10v10H6l-3-3V3z';
+  const NOTE_ICON_LINES = 'M5.5 6h5M5.5 8.5h3';
+  const HW_ICON_BODY = 'M3 13l2-.5 7-7-1.5-1.5-7 7L3 13z';
+  const HW_ICON_TIP = 'M9.5 4l1.5 1.5';
+  // 注意：SVGのarc(a)コマンドはフラグ桁("002 2"のような詰め書き)をpdf-libが正しく
+  // 分割できないバグがあるため、必ず桁ごとに空白で区切って書く（"0 0 2 2"）。
+  const CLIP_ICON = 'M11 5L6 10a1.5 1.5 0 0 0 2 2l5-5a3 3 0 0 0-4-4l-5 5a4.5 4.5 0 0 0 6 6l4-4';
+  const drawFlagIcon = (kind, x, yPos, scale, color) => {
+    const opt = { x, y: yPos, scale, borderColor: color, borderWidth: 1.3 / scale };
+    if (kind === 'note') { page.drawSvgPath(NOTE_ICON_OUTER, opt); page.drawSvgPath(NOTE_ICON_LINES, opt); }
+    else if (kind === 'hw') { page.drawSvgPath(HW_ICON_BODY, opt); page.drawSvgPath(HW_ICON_TIP, opt); }
+    else if (kind === 'clip') { page.drawSvgPath(CLIP_ICON, opt); }
+  };
+
+  // ── 授業コマ／放課後コマ共通の描画（教科名／学級バッジ／タイトル／メモ等アイコン） ──
   const drawLessonCell = (cx, topY, cellH, date, period) => {
     page.drawRectangle({ x: cx, y: topY - cellH, width: DAY_W, height: cellH, borderColor: colorBorder, borderWidth: 0.5 });
     const l = state.lessons[lessonKey(date, period)];
     if (!l || !(l.subjectId || l.title || l.className)) return;
     const subj = getSubjectById(l.subjectId)?.name || '';
     const color = _pdfLibColor(getSubjectColor(l.subjectId));
-    const hasNote = !!(l.note && l.note.trim());
+    const hasNote  = !!(l.note && l.note.trim());
+    const hasHw    = !!(l.hwPages?.some(Boolean));
+    const hasPhoto = !!(l.photos?.length);
     page.drawRectangle({ x: cx, y: topY - cellH, width: DAY_W, height: cellH, color, opacity: 0.1 });
     page.drawRectangle({ x: cx, y: topY - cellH, width: 2.5, height: cellH, color });
 
     const pad = 6;
-    let cy = topY - 11;
-    if (subj) {
-      page.drawText(subj, { x: cx + pad, y: cy, size: 8.5, font: fontB, color });
-      // v11.2.0：メモ印は「✎」等の文字グリフではなく単純な塗り円で描く。文字グリフだと
-      // 端末のフォールバックフォントにグリフが無い場合に四角い代替表示(tofu box)になる
-      // ことがあり、これが過去に報告された「謎の帯」の正体だった可能性が高い
-      // （html2canvas経由のラスタライズでも同種の事象は起こりうる）。ベクター図形なら
-      // フォント依存が一切ないため、この不具合は構造的に発生しなくなる。
-      if (hasNote) {
-        const subjW = fontB.widthOfTextAtSize(subj, 8.5);
-        page.drawCircle({ x: cx + pad + subjW + 6, y: cy + 2.5, size: 2.2, color: colorNoteDot });
-      }
-      cy -= 12;
-    }
+    if (subj) page.drawText(subj, { x: cx + pad, y: topY - 11, size: 8.5, font: fontB, color });
+
+    // v11.2.1：学級名は教科名の下に積む行から、セル右上の独立したバッジへ変更
+    // （ユーザー要望）。フォントサイズも6.5→7.5ptへ拡大。右寄せ・背景＋枠付きの
+    // バッジにすることで、教科名と横に並んでも視認しやすくした。
+    let classRowH = 12;
     if (l.className) {
-      const lines = _pdfLibWrap(fontR, l.className, 6.5, DAY_W - pad * 2 - 4, 2);
-      lines.forEach((ln, i) => page.drawText(ln, { x: cx + pad + 2, y: cy - i * 8, size: 6.5, font: fontR, color: colorSub }));
-      cy -= lines.length * 8 + 4;
+      const lines = _pdfLibWrap(fontR, l.className, 7.5, DAY_W * 0.62, 2);
+      const lineH = 9.5;
+      const badgeW = Math.max(...lines.map(ln => fontR.widthOfTextAtSize(ln, 7.5))) + 7;
+      const badgeH = lines.length * lineH + 3;
+      const badgeX = cx + DAY_W - pad - badgeW;
+      const badgeTop = topY - 5;
+      const badgeY = badgeTop - badgeH;
+      page.drawRectangle({ x: badgeX, y: badgeY, width: badgeW, height: badgeH, color: rgb(1, 1, 1), opacity: 0.8, borderColor: colorBorder, borderWidth: 0.6 });
+      lines.forEach((ln, i) => page.drawText(ln, { x: badgeX + 3.5, y: badgeTop - lineH * (i + 1) + 2.5, size: 7.5, font: fontR, color: colorSub }));
+      classRowH = Math.max(classRowH, badgeH + 5);
     }
+
+    const cy = topY - classRowH - 4;
+    const flags = [];
+    if (hasNote) flags.push({ kind: 'note', label: 'メモ' });
+    if (hasHw) flags.push({ kind: 'hw', label: '手書き' });
+    if (hasPhoto) flags.push({ kind: 'clip', label: '添付' });
+
+    // v11.2.1：タイトルの最大行数は固定値ではなく、実際に残っている高さから
+    // その都度計算する（学級バッジが2行になった分・アイコン行の有無で必要な
+    // 余白は毎回変わるため）。2行ぶん(18pt)+念のための余白(2pt)が入るなら2行、
+    // 入らなければ1行に減らして省略記号に任せる＝どのケースでも絶対に
+    // セルからはみ出さない。
     if (l.title) {
-      const lines = _pdfLibWrap(fontR, l.title, 7.5, DAY_W - pad * 2, 2);
+      const titleBottom = topY - cellH + (flags.length ? 14 : 4);
+      const availableH = cy - titleBottom;
+      const maxTtlLines = availableH >= 20 ? 2 : 1;
+      const lines = _pdfLibWrap(fontR, l.title, 7.5, DAY_W - pad * 2, maxTtlLines);
       lines.forEach((ln, i) => page.drawText(ln, { x: cx + pad, y: cy - i * 9, size: 7.5, font: fontR, color: colorInk }));
+    }
+
+    // ── メモ／手書き／添付：短い言葉＋ベクターアイコンを最下段に表示 ──
+    if (flags.length) {
+      const iconScale = 0.5;
+      const fy = topY - cellH + 5;
+      let fx = cx + pad;
+      flags.forEach(f => {
+        drawFlagIcon(f.kind, fx, fy + 16 * iconScale * 0.35, iconScale, colorSub);
+        fx += 16 * iconScale + 3;
+        page.drawText(f.label, { x: fx, y: fy, size: 6, font: fontR, color: colorSub });
+        fx += fontR.widthOfTextAtSize(f.label, 6) + 8;
+      });
     }
   };
 
