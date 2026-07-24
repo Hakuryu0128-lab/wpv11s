@@ -34,6 +34,22 @@
    6.78Mから緩やかな増加で安全域）としてperiodH（授業セル高さ）に再配分。長い学級名
    ×長いタイトル×メモありの最悪ケースでも scrollHeight===clientHeight（余白0で完全
    収納）を実機相当のブラウザDOM計測で確認済み（全35セルでoverflow発生なし）。
+   →しかし実機では改善せず、「メモあり」の場所に謎の帯が出る新規報告あり。
+   原因は複数重なっていた。①検証がブラウザの生DOM計測どまりで、実際のPDFが
+   経由するhtml2canvasのラスタライズ差異までは見ていなかった（Mistakes M-15）。
+   ②放課後の行がSPECIAL_H（行事・昼と同じ短文用の高さ）のままlessonCell()
+   （教科名＋学級バッジ＋タイトル）を表示していたため、そもそも高さが
+   全く足りていなかった（設計上の見落とし）。③「謎の帯」は✎という文字グリフが
+   端末のフォールバックフォントに無い場合の代替表示(tofu box)だった可能性が高い。
+   v11.2.0：週案表PDFに限り、html2canvas(ラスタライズ)をやめてpdf-libによる
+   直接描画に全面移行。文字はフォントの実測幅で2分探索しながら折り返し、
+   収まらない分は省略記号「…」で明示的に切る（幅は拡げず・高さは固定のまま
+   確実に収める、というユーザー要望どおりの方針）。メモ印は文字グリフではなく
+   ベクターの塗り円に変更（フォント依存を排除＝謎の帯を構造的に解消）。
+   放課後もlessonCellと同じ高さ（periodH）を確保するよう修正。日本語フォントは
+   NotoSansJPをvendorに同梱しsubset:falseで丸ごと埋め込む（subset:trueだと
+   このOTFはグリフが破損する不具合をpoppler実測で確認したため）。詳細メモPDF
+   は実害報告がなく今回は対象外、既存のhtml2canvas経由のまま。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -41,7 +57,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.1.6';
+const APP_VERSION = '11.2.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -5907,11 +5923,13 @@ function buildWeeklyPrintHtml(unit = 'px') {
   const isMm = unit === 'mm';
   const toU = px => isMm ? +(px / PDF_PX_PER_MM).toFixed(2) : Math.round(px);
   const suf = isMm ? 'mm' : 'px';
-  const HEADER_H = 60, THEAD_H = 40, SPECIAL_H = 40;   // デザインpx（行事・昼・放課後は共通）
-  // v11.1.6：THEAD_H/SPECIAL_Hは内容(短い日付・行事文)に対して余裕がありすぎたため
-  // 縮小し、浮いた分をperiodH（授業セル）に回す（下記PDF_PAGE_W_PX拡大とあわせて対応）。
-  const fixedTotal = HEADER_H + THEAD_H + SPECIAL_H * 3; // 行事＋昼＋放課後の3行ぶん
-  const periodH = Math.max(50, (PDF_PAGE_H_PX - fixedTotal) / periods);
+  const HEADER_H = 60, THEAD_H = 40, SPECIAL_H = 40;   // デザインpx（行事・昼は短文専用）
+  // v11.2.0：放課後は「行事/昼」と同じSPECIAL_Hだったが、放課後は行事/昼と違い
+  // lessonCell()（教科名＋学級バッジ＋タイトル）を表示する箱なので、短文用の
+  // SPECIAL_Hでは高さが全く足りず見切れの原因になっていた（Mistakes M-1x）。
+  // 放課後は授業コマ(periodH)と同じ扱いにする＝periodsに+1して割る。
+  const fixedTotal = HEADER_H + THEAD_H + SPECIAL_H * 2; // 行事＋昼の2行ぶん（放課後は除外）
+  const periodH = Math.max(50, (PDF_PAGE_H_PX - fixedTotal) / (periods + 1)); // +1＝放課後ぶん
   const sheetW = isMm ? PDF_CONTENT_W_MM : PDF_PAGE_W_PX;
   const sheetH = isMm ? PDF_CONTENT_H_MM : PDF_PAGE_H_PX;
 
@@ -5976,8 +5994,8 @@ function buildWeeklyPrintHtml(unit = 'px') {
     }
   }
 
-  // after row（放課後）
-  rowHeights.push(SPECIAL_H);
+  // after row（放課後）※SPECIAL_HではなくperiodHと同じ高さ（lessonCell()を使うため）
+  rowHeights.push(periodH);
   cells.push(`<div class="pw-gc pw-rlabel pw-rl-after">放課後</div>`);
   days.forEach(date => cells.push(lessonCell(date, 'after')));
 
@@ -6074,6 +6092,212 @@ const PDF_CONTENT_H_MM = PDF_A4.h - PDF_A4.margin * 2;
 const PDF_PX_PER_MM = PDF_PAGE_W_PX / PDF_CONTENT_W_MM;
 const PDF_PAGE_H_PX = Math.floor(PDF_CONTENT_H_MM * PDF_PX_PER_MM);
 
+/* ═══ 週案表PDF：pdf-lib直接描画（v11.2.0）═══
+   これまでhtml2canvasで週案表HTMLを「スクリーンショット」してからPDFに貼り込んで
+   いたが、html2canvasはブラウザの実描画結果を撮影する仕組みのため、iPad Safariの
+   Canvasサイズ上限／メモリ不足／絵文字（✎）のフォールバック描画（tofu box）／
+   スケールとデザイン幅の掛け算でのラスタサイズ膨張、といった端末依存の問題を
+   繰り返し踏んできた（Mistakes M-13〜M-15）。v11.2.0では週案表PDFに限り、
+   pdf-libで文字・図形を直接PDFへ描画する方式に変更する。ラスタライズを一切
+   経由しないため、フォントの実測幅から「何文字入るか」がJS側で確定でき、
+   ブラウザや端末による見え方の差が原理的に発生しない。詳細メモPDFは今回の
+   対象外（実害報告がなかったため既存のhtml2canvas経由のまま）。
+   注意：フォント埋め込み時にsubset:trueにすると、このNotoSansJPフォント
+   （CFFベースのOTF）はグリフが破損する不具合を確認済み（poppler実測）。
+   ファイルサイズは増えるがsubset:falseで全体を埋め込むこと。 */
+const PDFLIB_MM = 2.834645669;             // 1mm → pt
+const PDFLIB_HEADER_H = 34;                // pt
+const PDFLIB_THEAD_H  = 24;                // pt
+const PDFLIB_SPECIAL_H = 24;               // pt（行事・昼のみ。放課後はperiodHと同じ扱い）
+const PDFLIB_LABEL_RATIO = 0.08;           // ラベル列幅（週案表CSSの8%と統一）
+
+let _pdfLibFontBytes = null;
+async function _pdfLibLoadFonts(doc) {
+  if (!_pdfLibFontBytes) {
+    const [regBuf, boldBuf] = await Promise.all([
+      fetch('vendor/NotoSansJP-Regular.otf').then(r => r.arrayBuffer()),
+      fetch('vendor/NotoSansJP-Bold.otf').then(r => r.arrayBuffer()),
+    ]);
+    _pdfLibFontBytes = { regBuf, boldBuf };
+  }
+  doc.registerFontkit(window.fontkit);
+  const fontR = await doc.embedFont(_pdfLibFontBytes.regBuf, { subset: false });
+  const fontB = await doc.embedFont(_pdfLibFontBytes.boldBuf, { subset: false });
+  return { fontR, fontB };
+}
+
+function _pdfLibColor(hex) {
+  const n = parseInt((hex || '#6B7280').replace('#', ''), 16);
+  return window.PDFLib.rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+}
+
+/* フォントの実測幅を2分探索しながら折り返す。maxLines行を超える分は最終行を
+   「…」付きで切り詰める（収まるまで1文字ずつ削る）。CSSのline-clampと違い、
+   描画前に「入りきるか」がピクセル単位で確定するため、実機のレンダリング差異に
+   一切左右されない（＝この関数が返す行数・文字数は、どの端末で開いても同じ）。 */
+function _pdfLibWrap(font, text, size, maxWidth, maxLines) {
+  const lines = [];
+  let remaining = String(text || '');
+  while (remaining.length > 0 && lines.length < maxLines) {
+    let lo = 1, hi = remaining.length, best = 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (font.widthOfTextAtSize(remaining.slice(0, mid), size) <= maxWidth) { best = mid; lo = mid + 1; }
+      else hi = mid - 1;
+    }
+    if (best >= remaining.length) {
+      lines.push(remaining); remaining = '';
+    } else if (lines.length === maxLines - 1) {
+      let cut = best;
+      while (cut > 0 && font.widthOfTextAtSize(remaining.slice(0, cut) + '…', size) > maxWidth) cut--;
+      lines.push(remaining.slice(0, Math.max(cut, 0)) + '…');
+      remaining = '';
+    } else {
+      lines.push(remaining.slice(0, best));
+      remaining = remaining.slice(best);
+    }
+  }
+  return lines;
+}
+
+async function buildWeeklyPdfLib(pdfDoc) {
+  const { rgb } = window.PDFLib;
+  const { fontR, fontB } = await _pdfLibLoadFonts(pdfDoc);
+
+  const A4_W = PDF_A4.w * PDFLIB_MM, A4_H = PDF_A4.h * PDFLIB_MM;
+  const MARGIN = PDF_A4.margin * PDFLIB_MM;
+  const CONTENT_W = A4_W - MARGIN * 2, CONTENT_H = A4_H - MARGIN * 2;
+
+  const start = state.currentWeekStart;
+  const periods = state.settings.periodsCount;
+  const lunchAfter = state.settings.lunchAfter || 4;
+  const times = state.settings.periodTimes || [];
+  const days = [0, 1, 2, 3, 4].map(d => addDays(start, d));
+  const monthKeyOf = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+
+  // 放課後もlessonCellと同じ内容を表示するため、periods+1枠で均等割りする
+  // （buildWeeklyPrintHtmlのperiodH算出と同じ考え方。詳細はv11.2.0コメント参照）。
+  const fixedTotal = PDFLIB_HEADER_H + PDFLIB_THEAD_H + PDFLIB_SPECIAL_H * 2;
+  const periodH = (CONTENT_H - fixedTotal) / (periods + 1);
+  const LABEL_W = CONTENT_W * PDFLIB_LABEL_RATIO;
+  const DAY_W = (CONTENT_W - LABEL_W) / 5;
+
+  const page = pdfDoc.addPage([A4_W, A4_H]);
+  const colorInk = rgb(0.09, 0.13, 0.19), colorSub = rgb(0.28, 0.34, 0.42),
+        colorBorder = rgb(0.83, 0.86, 0.90), colorHeadBg = rgb(0.94, 0.96, 0.98),
+        colorLabelBg = rgb(0.89, 0.91, 0.94), colorLunchBg = rgb(0.996, 0.953, 0.78),
+        colorLunchInk = rgb(0.57, 0.25, 0.05), colorNoteDot = rgb(0.85, 0.5, 0.02);
+
+  const centerText = (font, text, size, cx, y, color) => {
+    const w = font.widthOfTextAtSize(text, size);
+    page.drawText(text, { x: cx - w / 2, y, size, font, color });
+  };
+
+  let y = A4_H - MARGIN;
+
+  // ── header（タイトル＋期間／担任・学校名） ──
+  const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`;
+  const titleText = `週案表　${start.getFullYear()}年 ${fmt(start)}（月）〜 ${fmt(addDays(start, 4))}（金）`;
+  page.drawText(titleText, { x: MARGIN, y: y - 17, size: 13, font: fontB, color: colorInk });
+  const teacherName = state.settings.teacherName || '';
+  const schoolName = state.settings.schoolName || '';
+  const w1 = teacherName ? fontB.widthOfTextAtSize(teacherName, 10) : 0;
+  const w2 = schoolName ? fontR.widthOfTextAtSize(schoolName, 8) : 0;
+  const ownerX = MARGIN + CONTENT_W - Math.max(w1, w2, 1);
+  if (teacherName) page.drawText(teacherName, { x: ownerX, y: y - 12, size: 10, font: fontB, color: rgb(0.06, 0.09, 0.14) });
+  if (schoolName) page.drawText(schoolName, { x: ownerX, y: y - 24, size: 8, font: fontR, color: colorSub });
+  page.drawLine({ start: { x: MARGIN, y: y - PDFLIB_HEADER_H + 4 }, end: { x: MARGIN + CONTENT_W, y: y - PDFLIB_HEADER_H + 4 }, thickness: 1.5, color: rgb(0.2, 0.24, 0.32) });
+  y -= PDFLIB_HEADER_H;
+
+  // ── 曜日ヘッダー行 ──
+  page.drawRectangle({ x: MARGIN, y: y - PDFLIB_THEAD_H, width: LABEL_W, height: PDFLIB_THEAD_H, color: colorHeadBg, borderColor: colorBorder, borderWidth: 0.5 });
+  for (let d = 0; d < 5; d++) {
+    const cx = MARGIN + LABEL_W + d * DAY_W;
+    page.drawRectangle({ x: cx, y: y - PDFLIB_THEAD_H, width: DAY_W, height: PDFLIB_THEAD_H, color: colorHeadBg, borderColor: colorBorder, borderWidth: 0.5 });
+    centerText(fontB, DAYS[d], 11, cx + DAY_W / 2, y - 13, colorInk);
+    centerText(fontR, `${days[d].getMonth() + 1}/${days[d].getDate()}`, 7.5, cx + DAY_W / 2, y - 21, colorSub);
+  }
+  y -= PDFLIB_THEAD_H;
+
+  // ── 行事／昼：短文専用の行（2行まで折り返し＋省略記号） ──
+  const drawSpecialRow = (label, labelBg, labelInk, textByDay, cellBg) => {
+    page.drawRectangle({ x: MARGIN, y: y - PDFLIB_SPECIAL_H, width: LABEL_W, height: PDFLIB_SPECIAL_H, color: labelBg });
+    centerText(fontB, label, 8, MARGIN + LABEL_W / 2, y - PDFLIB_SPECIAL_H / 2 - 3, labelInk);
+    for (let d = 0; d < 5; d++) {
+      const cx = MARGIN + LABEL_W + d * DAY_W;
+      page.drawRectangle({ x: cx, y: y - PDFLIB_SPECIAL_H, width: DAY_W, height: PDFLIB_SPECIAL_H, borderColor: colorBorder, borderWidth: 0.5, color: cellBg });
+      const lines = _pdfLibWrap(fontR, textByDay[d] || '', 7.5, DAY_W - 10, 2);
+      lines.forEach((ln, i) => page.drawText(ln, { x: cx + 5, y: y - 10 - i * 9, size: 7.5, font: fontR, color: colorInk }));
+    }
+    y -= PDFLIB_SPECIAL_H;
+  };
+  const eventsByDay = days.map(date => {
+    const mk = monthKeyOf(date);
+    const dayMap = (state.events[mk] && !Array.isArray(state.events[mk])) ? state.events[mk] : {};
+    return dayMap[date.getDate()] || '';
+  });
+  drawSpecialRow('行事', colorLabelBg, colorSub, eventsByDay);
+
+  // ── 授業コマ／放課後コマ共通の描画（教科名＋メモ印＋学級バッジ＋タイトル） ──
+  const drawLessonCell = (cx, topY, cellH, date, period) => {
+    page.drawRectangle({ x: cx, y: topY - cellH, width: DAY_W, height: cellH, borderColor: colorBorder, borderWidth: 0.5 });
+    const l = state.lessons[lessonKey(date, period)];
+    if (!l || !(l.subjectId || l.title || l.className)) return;
+    const subj = getSubjectById(l.subjectId)?.name || '';
+    const color = _pdfLibColor(getSubjectColor(l.subjectId));
+    const hasNote = !!(l.note && l.note.trim());
+    page.drawRectangle({ x: cx, y: topY - cellH, width: DAY_W, height: cellH, color, opacity: 0.1 });
+    page.drawRectangle({ x: cx, y: topY - cellH, width: 2.5, height: cellH, color });
+
+    const pad = 6;
+    let cy = topY - 11;
+    if (subj) {
+      page.drawText(subj, { x: cx + pad, y: cy, size: 8.5, font: fontB, color });
+      // v11.2.0：メモ印は「✎」等の文字グリフではなく単純な塗り円で描く。文字グリフだと
+      // 端末のフォールバックフォントにグリフが無い場合に四角い代替表示(tofu box)になる
+      // ことがあり、これが過去に報告された「謎の帯」の正体だった可能性が高い
+      // （html2canvas経由のラスタライズでも同種の事象は起こりうる）。ベクター図形なら
+      // フォント依存が一切ないため、この不具合は構造的に発生しなくなる。
+      if (hasNote) {
+        const subjW = fontB.widthOfTextAtSize(subj, 8.5);
+        page.drawCircle({ x: cx + pad + subjW + 6, y: cy + 2.5, size: 2.2, color: colorNoteDot });
+      }
+      cy -= 12;
+    }
+    if (l.className) {
+      const lines = _pdfLibWrap(fontR, l.className, 6.5, DAY_W - pad * 2 - 4, 2);
+      lines.forEach((ln, i) => page.drawText(ln, { x: cx + pad + 2, y: cy - i * 8, size: 6.5, font: fontR, color: colorSub }));
+      cy -= lines.length * 8 + 4;
+    }
+    if (l.title) {
+      const lines = _pdfLibWrap(fontR, l.title, 7.5, DAY_W - pad * 2, 2);
+      lines.forEach((ln, i) => page.drawText(ln, { x: cx + pad, y: cy - i * 9, size: 7.5, font: fontR, color: colorInk }));
+    }
+  };
+
+  // ── 授業コマ（＋lunchAfter直後に昼を挿入） ──
+  for (let p = 1; p <= periods; p++) {
+    page.drawRectangle({ x: MARGIN, y: y - periodH, width: LABEL_W, height: periodH, color: rgb(0.95, 0.96, 0.97) });
+    centerText(fontB, String(p), 13, MARGIN + LABEL_W / 2, y - periodH / 2 - 3, colorInk);
+    if (times[p - 1]) centerText(fontR, times[p - 1], 6.5, MARGIN + LABEL_W / 2, y - periodH / 2 - 15, rgb(0.58, 0.64, 0.72));
+    for (let d = 0; d < 5; d++) drawLessonCell(MARGIN + LABEL_W + d * DAY_W, y, periodH, days[d], p);
+    y -= periodH;
+
+    if (p === lunchAfter) {
+      const lunchByDay = days.map(date => state.lunch[formatDate(date)] || '');
+      drawSpecialRow('昼', colorLunchBg, colorLunchInk, lunchByDay, rgb(0.999, 0.992, 0.953));
+    }
+  }
+
+  // ── 放課後（periodHと同じ高さ＝lessonCellを表示できるだけの余裕を持たせる） ──
+  page.drawRectangle({ x: MARGIN, y: y - periodH, width: LABEL_W, height: periodH, color: colorLabelBg });
+  centerText(fontB, '放課後', 7, MARGIN + LABEL_W / 2, y - periodH / 2 - 3, colorSub);
+  for (let d = 0; d < 5; d++) drawLessonCell(MARGIN + LABEL_W + d * DAY_W, y, periodH, days[d], 'after');
+  y -= periodH;
+
+  return page;
+}
+
 function _pdfMakeHost() {
   const host = document.createElement('div');
   host.id = '_pdfHost';
@@ -6123,25 +6347,42 @@ async function _pdfAddPage(pdf, pageEl, isFirst, opts = {}) {
 }
 
 async function exportPdf() {
-  if (!window.jspdf || !window.html2canvas) { showToast('PDF機能を読み込めませんでした'); return; }
   const type = document.querySelector('input[name="printType"]:checked')?.value || 'weekly';
+  // v11.2.0：週案表はpdf-lib直接描画（ラスタライズ非経由）に変更したため、
+  // html2canvasは詳細メモPDFでのみ必要。週案表だけをダウンロードする時に
+  // html2canvas未読込でブロックしないよう、型ごとに必要なライブラリだけ確認する。
+  if (type === 'weekly') {
+    if (!window.PDFLib || !window.fontkit) { showToast('PDF機能を読み込めませんでした'); return; }
+  } else if (!window.jspdf || !window.html2canvas) {
+    showToast('PDF機能を読み込めませんでした'); return;
+  }
   showToast('PDFを作成中…');
+
+  if (type === 'weekly') {
+    // ラスタライズを一切経由しないため、隠しDOMホスト(_pdfMakeHost)は不要。
+    try {
+      const pdfDoc = await window.PDFLib.PDFDocument.create();
+      await buildWeeklyPdfLib(pdfDoc);
+      const bytes = await pdfDoc.save();
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `WEEKY-週案表-${formatDate(state.currentWeekStart)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('PDFを書き出しました');
+    } catch (e) {
+      showToast('PDFの作成に失敗しました');
+    }
+    return;
+  }
+
   const host = _pdfMakeHost();
   try {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-    if (type === 'weekly') {
-      const page = document.createElement('div');
-      page.className = 'pdf-page';
-      page.style.height = PDF_PAGE_H_PX + 'px';   // A4横の内容高さいっぱいに表を伸ばす
-      page.innerHTML = buildWeeklyPrintHtml('px');
-      host.appendChild(page);
-      // fixedH指定で常にPDF_PAGE_H_PXぴったりのキャンバスにする（内容量で
-      // 縮小率が変わらないよう固定。行の高さ自体はbuildWeeklyPrintHtml側で
-      // 既に確定済みなので、通常はscrollHeightもほぼ一致するが念のため明示）。
-      await _pdfAddPage(pdf, page, true, { fit: 0.90, centerV: true, fixedH: PDF_PAGE_H_PX });
-    } else {
+    {
       const cards = await detailCardHtmls();
       const header = printHeaderHtml('詳細メモ');
       if (!cards.length) {
