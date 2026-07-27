@@ -1,9 +1,9 @@
-const CACHE_NAME = 'weeky-v11.2.2';
+const CACHE_NAME = 'weeky-v11.3.1';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=11.2.2',
-  './app.js?v=11.2.2',
+  './styles.css?v=11.3.1',
+  './app.js?v=11.3.1',
   './manifest.webmanifest',
   './vendor/jspdf.umd.min.js',
   './vendor/html2canvas.min.js',
@@ -36,7 +36,14 @@ self.addEventListener('activate', (e) => {
 /* NETWORK-FIRST strategy.
    Always try the network first so updated files propagate immediately.
    Fall back to cache only when offline. This prevents the stale-cache
-   problem where an old index.html keeps loading an old app.js. */
+   problem where an old index.html keeps loading an old app.js.
+   v11.3.1：fetch(e.request)だけだとブラウザの「HTTP cache」を経由してしまい、
+   GitHub PagesがCache-Control: max-age=600を返すindex.html等は、直近10分以内に
+   一度でも読み込んでいると「ネットワークに問い合わせたつもり」でも実際は端末の
+   HTTPキャッシュから古いバイト列が返ってきてしまう不具合があった（ユーザー報告：
+   「アップデートが降りてこない」）。fetch(url, {cache:'no-store'})に変更し、
+   HTTPキャッシュそのものを迂回して常にネットワークから生のバイト列を取得する
+   よう修正。オンラインである限り、これで確実に最新版に更新される。 */
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
 
@@ -44,7 +51,7 @@ self.addEventListener('fetch', (e) => {
   if (new URL(e.request.url).origin !== self.location.origin) return;
 
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request.url, { cache: 'no-store' })
       .then((res) => {
         const clone = res.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));

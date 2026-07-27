@@ -62,6 +62,28 @@
    位置も少し下げた。③メモ／手書き／添付のアイコン行を、文字と上下中央が揃うよう
    修正（アイコンはdrawSvgPathのローカル座標系の中心とテキストの実測baselineを
    突き合わせて算出）。下端の余白も5→9ptに拡げ、枠線ぎりぎりだった問題を解消。
+   v11.3.0：詳細メモ（一コマずつ）PDFも、週案表と同じpdf-lib直接描画方式に全面
+   移行（ユーザー要望：「効率よく印刷できるように再設計して」）。旧方式は
+   ①内容量に関わらず1コマ=1/4ページ固定でスカスカのコマも埋まったコマも同じ
+   面積を占有、②写真・手書きがCSSで最大68px高に強制収縮され超過分は不可視、
+   ③メモ本文がoverflow:hiddenで省略記号なしに欠ける、という3つの非効率があった。
+   新方式は各コマの必要高さ（メモの行数・画像枚数から実測計算）ぶんだけ使う
+   可変高さの2段組みフローレイアウトにし、内容が尽きた時にだけ改ページする。
+   画像はhtml2canvasのラスタライズを経由せず、pdf-lib embedPng/embedJpgで元
+   データを直接埋め込む（手書きは常にPNG、写真はFile由来でJPEG/PNGが主。それ
+   以外の形式（HEIC/WebP等）は埋め込めないため「表示できない添付」として件数
+   のみ表示するフォールバックにした）。これに伴い、PDFダウンロードは週案表・
+   詳細メモとも html2canvas/jsPDF を使わなくなったため、_pdfMakeHost/
+   _pdfAddPage/_pdfWaitImgs の3関数を削除（死んだコードを残さない）。ブラウザ
+   印刷（@page）経由の detailCardHtmls/buildDetailPrintHtml はHTML/CSSのまま
+   温存（今回の対象は「PDFダウンロード」のみ、実害報告のあった経路に限定）。
+   v11.3.1：ユーザー報告2件を修正。①週案表の授業タイトル（l.title）が実機で見ると
+   v11.2.2の15ptは大きすぎたため10.5ptに縮小。②「アップデートが降りてこない」
+   問題の根本原因を修正（service-worker.js側）。fetch(e.request)はブラウザの
+   HTTPキャッシュを経由するため、GitHub PagesがCache-Control: max-age=600を
+   返すindex.html等は、直近10分以内の読み込み履歴があるとネットワークに
+   問い合わせたつもりでも端末側の古いキャッシュが返っていた。
+   fetch(url, {cache:'no-store'})でHTTPキャッシュ自体を迂回するよう修正。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -69,7 +91,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.2.2';
+const APP_VERSION = '11.3.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -6322,7 +6344,8 @@ async function buildWeeklyPdfLib(pdfDoc) {
     }
 
     // v11.2.2：タイトルを7.5→15pt（約2倍）に拡大。位置も少し下げる（gap 4→7）。
-    const TITLE_SIZE = 15;
+    // v11.3.1：実機で見ると15ptは大きすぎた（ユーザー報告）ため10.5ptに縮小。
+    const TITLE_SIZE = 10.5;
     const TITLE_LINE_H = TITLE_SIZE * 1.2;
     const cy = topY - classRowH - 7;
     const flags = [];
@@ -6390,131 +6413,264 @@ async function buildWeeklyPdfLib(pdfDoc) {
   return page;
 }
 
-function _pdfMakeHost() {
-  const host = document.createElement('div');
-  host.id = '_pdfHost';
-  host.style.cssText = `position:fixed; left:-99999px; top:0; width:${PDF_PAGE_W_PX}px; background:#fff; color:#111;`
-    // Windowsで日本語がSegoe UI（非対応→フォント置換）に落ちる前にYu Gothic/Meiryoを
-    // 挟む。フォントが変わると文字幅・折り返し行数が変わり、行の必要高さが端末ごとに
-    // ズレる一因になっていたため、印刷iframe側(PRINT_CSS)と同じスタックに揃える。
-    + `font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic Medium","Yu Gothic",Meiryo,"Segoe UI",Roboto,sans-serif;`;
-  // 注入CSS。.pd-grid--quad/.pd-card は共通CSS(PRINT_COMPONENT_CSS)側で
-  // 既にheight:100%+grid-template-rows:1fr 1frの固定枠になっているので、
-  // PDFホスト専用の上書きは不要。
-  host.innerHTML = `<style>${PRINT_COMPONENT_CSS}
-    #_pdfHost .pdf-page { width:${PDF_PAGE_W_PX}px; background:#fff; padding:0; overflow:hidden; }
-  </style>`;
-  document.body.appendChild(host);
-  return host;
+/* ═══ 詳細メモPDF：pdf-lib直接描画（v11.3.0）═══
+   従来はhtml2canvas経由で「田の字」固定4分割グリッドに流し込んでいたため、
+   ①内容量に関わらず1コマ=1/4ページ固定でスカスカのコマも埋まったコマも同じ
+   面積を占有し紙面が非効率、②写真・手書きはCSSで最大68px高に強制収縮され
+   超過分は不可視、③メモ本文はoverflow:hiddenで省略記号なしに欠ける、という
+   3つの制約があった（ユーザー要望：「効率よく印刷できるように」）。
+   v11.3.0では週案表と同じpdf-lib直接描画に統一し、各コマの必要高さを実際の
+   内容（メモの行数・画像枚数）から計算してから2段組みに流し込む「可変高さ
+   フロー」レイアウトに変更した。短いコマは小さく、内容の多いコマは大きく
+   描画され、ページも内容が尽きた時にだけ改ページする＝空白の無駄がほぼ無い。
+   画像はhtml2canvasのラスタライズを経由せず、pdf-lib embedPng/embedJpgで
+   元データを直接PDFに埋め込む（手書きは常にPNG。写真はFile由来でJPEG/PNGが
+   主だが、それ以外の形式（HEIC/WebP等）はpdf-libが非対応のため埋め込めず、
+   「表示できない添付」件数のみのフォールバック表示にする）。 */
+
+// dataURL(base64)からpdf-libのPDFImageを埋め込む。PNG/JPEG以外はpdf-libが
+// 対応していないため埋め込み不可＝nullを返し、呼び出し側でフォールバックする。
+async function _pdfLibEmbedImage(pdfDoc, dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string') return null;
+  const m = dataUrl.match(/^data:([^;]+);base64,(.*)$/);
+  if (!m) return null;
+  try {
+    const bytes = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+    if (m[1] === 'image/png') return await pdfDoc.embedPng(bytes);
+    if (m[1] === 'image/jpeg' || m[1] === 'image/jpg') return await pdfDoc.embedJpg(bytes);
+  } catch (_) { /* 破損データ等は埋め込み失敗としてnullを返す */ }
+  return null;
 }
 
-async function _pdfWaitImgs(root) {
-  const imgs = [...root.querySelectorAll('img')];
-  await Promise.all(imgs.map(im => im.complete ? null : new Promise(r => { im.onload = im.onerror = r; })));
+// 改行(\n)を保ったまま、段落ごとにフォント実測幅で折り返す（_pdfLibWrapの複数行版）。
+function _pdfLibWrapMulti(font, text, size, maxWidth, maxLines) {
+  const paragraphs = String(text || '').split('\n');
+  let lines = [];
+  for (const para of paragraphs) {
+    if (lines.length >= maxLines) break;
+    if (para === '') { lines.push(''); continue; }
+    lines = lines.concat(_pdfLibWrap(font, para, size, maxWidth, maxLines - lines.length));
+  }
+  return lines.slice(0, maxLines);
 }
 
-async function _pdfAddPage(pdf, pageEl, isFirst, opts = {}) {
-  const fit = opts.fit || 1;          // 1=内容いっぱい、0.95=少し余白を残す
-  const centerV = !!opts.centerV;     // 縦方向も中央に置くか（週案表用）
-  await _pdfWaitImgs(pageEl);
-  // 固定高さを超えた分（放課後など）が切り取られないよう、実コンテンツの全高を取り込む
-  const fullH = opts.fixedH || Math.max(pageEl.scrollHeight, pageEl.offsetHeight);
-  // v11.1.3：日本語の小さな文字（10〜11px）がPDFで「半分欠けたように」ぼやける不具合対策。
-  // 原因は2つ複合していた。①scale:2だと1040px幅のデザインを2080px幅でしかラスタライズせず、
-  // 画数の多い漢字を小さいサイズで描くには解像度が足りなかった。②JPEG圧縮は写真向けの
-  // 非可逆圧縮で、文字のようなくっきりした線の周りにリンギングノイズ（にじみ）が出やすく、
-  // 細い画線が欠けて見える一因になっていた。scaleを引き上げ、可逆圧縮のPNGに変更することで
-  // 解決する（実機での目視確認はできないため、原因分析に基づく対策として実施）。
-  const canvas = await window.html2canvas(pageEl, { scale: 3, backgroundColor: '#fff', useCORS: true, logging: false,
-    width: PDF_PAGE_W_PX, height: fullH, windowWidth: PDF_PAGE_W_PX, windowHeight: fullH });
-  const img = canvas.toDataURL('image/png');
-  const ratio = canvas.width / canvas.height;
-  let w = PDF_CONTENT_W_MM, h = w / ratio;
-  if (h > PDF_CONTENT_H_MM) { h = PDF_CONTENT_H_MM; w = h * ratio; }   // 1枚に収める
-  w *= fit; h *= fit;
-  const x = PDF_A4.margin + (PDF_CONTENT_W_MM - w) / 2;
-  const y = centerV ? PDF_A4.margin + (PDF_CONTENT_H_MM - h) / 2 : PDF_A4.margin;
-  if (!isFirst) pdf.addPage();
-  pdf.addImage(img, 'PNG', x, y, w, h);
+// 「記録のある授業コマ」一覧（detailCardHtmlsと同じ抽出条件、HTML化はしない生データ版）。
+async function _pdfLibDetailItems() {
+  const start = state.currentWeekStart;
+  const items = [];
+  for (let d = 0; d < 5; d++) {
+    const date = addDays(start, d);
+    const periodList = ['morning'];
+    for (let p = 1; p <= state.settings.periodsCount; p++) periodList.push(p);
+    periodList.push('after');
+    for (const p of periodList) {
+      const l = state.lessons[lessonKey(date, p)];
+      const has = l && (l.title || (l.note && l.note.trim()) || l.subjectId || l.photos?.length || l.hwPages?.some(Boolean));
+      if (has) items.push({ d, date, p, l });
+    }
+  }
+  return items;
+}
+
+async function buildDetailPdfLib(pdfDoc) {
+  const { rgb } = window.PDFLib;
+  const { fontR, fontB } = await _pdfLibLoadFonts(pdfDoc);
+
+  const A4_W = PDF_A4.w * PDFLIB_MM, A4_H = PDF_A4.h * PDFLIB_MM;
+  const MARGIN = PDF_A4.margin * PDFLIB_MM;
+  const CONTENT_W = A4_W - MARGIN * 2;
+
+  const colorInk = rgb(0.09, 0.13, 0.19), colorSub = rgb(0.28, 0.34, 0.42),
+        colorBorder = rgb(0.83, 0.86, 0.90), colorPanelBg = rgb(0.975, 0.98, 0.99),
+        colorNoteInk = rgb(0.15, 0.18, 0.24), colorWarn = rgb(0.6, 0.35, 0.08);
+
+  const items = await _pdfLibDetailItems();
+
+  // ── 画像を先に全部埋め込んでおく（同じ写真/手書きは1回だけ埋め込めばよい） ──
+  const imgCache = {};
+  for (const { l } of items) {
+    for (const ph of (l.photos || [])) {
+      if (imgCache[ph.id] !== undefined) continue;
+      try { const src = await mediaGet(ph.id); imgCache[ph.id] = src ? await _pdfLibEmbedImage(pdfDoc, src) : null; }
+      catch (_) { imgCache[ph.id] = null; }
+    }
+    for (const ref of (l.hwPages || [])) {
+      if (!ref || imgCache[ref] !== undefined) continue;
+      try { const src = await hwResolve(ref); imgCache[ref] = src ? await _pdfLibEmbedImage(pdfDoc, src) : null; }
+      catch (_) { imgCache[ref] = null; }
+    }
+  }
+
+  const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`;
+  const HEADER_H = 34;
+  const COLS = 2, COL_GAP = 12, CARD_GAP = 8, PAD = 8;
+  const COL_W = (CONTENT_W - COL_GAP * (COLS - 1)) / COLS;
+  const INNER_W = COL_W - PAD * 2;
+  const IMG_MAX_W = 95, IMG_MAX_H = 70, IMG_GAP = 6, MAX_IMAGES = 4;
+
+  let page, colTop; // colTop[i] = そのカラムの次カード配置y（上端）
+  const newPage = (withHeader) => {
+    page = pdfDoc.addPage([A4_W, A4_H]);
+    let y = A4_H - MARGIN;
+    if (withHeader) {
+      const start = state.currentWeekStart;
+      const titleText = `詳細メモ　${start.getFullYear()}年 ${fmt(start)}（月）〜 ${fmt(addDays(start, 4))}（金）`;
+      page.drawText(titleText, { x: MARGIN, y: y - 16, size: 15, font: fontB, color: colorInk });
+      const teacherName = state.settings.teacherName || '';
+      const schoolName = state.settings.schoolName || '';
+      const w1 = teacherName ? fontB.widthOfTextAtSize(teacherName, 10) : 0;
+      const w2 = schoolName ? fontR.widthOfTextAtSize(schoolName, 8) : 0;
+      const ownerX = MARGIN + CONTENT_W - Math.max(w1, w2, 1);
+      if (teacherName) page.drawText(teacherName, { x: ownerX, y: y - 12, size: 10, font: fontB, color: rgb(0.06, 0.09, 0.14) });
+      if (schoolName) page.drawText(schoolName, { x: ownerX, y: y - 24, size: 8, font: fontR, color: colorSub });
+      page.drawLine({ start: { x: MARGIN, y: y - HEADER_H + 4 }, end: { x: MARGIN + CONTENT_W, y: y - HEADER_H + 4 }, thickness: 1.5, color: rgb(0.2, 0.24, 0.32) });
+      y -= HEADER_H;
+    }
+    colTop = [y, y];
+  };
+  newPage(true);
+
+  if (!items.length) {
+    page.drawText('この週には記録のある授業がありません。', { x: MARGIN, y: colTop[0] - 20, size: 11, font: fontR, color: colorSub });
+    return;
+  }
+
+  // ── 1コマ分のレイアウトを「ブロック」の積み重ねとして計算する。
+  //    測定(height合計)と描画(draw内でのcy減算)が同じblocks配列を辿るため、
+  //    両者が食い違って重なる／隙間が空く、という不整合が構造的に起きない。 ──
+  const planCard = (item) => {
+    const { d, date, p, l } = item;
+    const subj = getSubjectById(l.subjectId)?.name || '';
+    const color = _pdfLibColor(getSubjectColor(l.subjectId));
+    const periodLabel = periodLabelOf(p);
+    const headLabel = `${DAYS[d]}（${fmt(date)}）　${periodLabel}`;
+
+    const blocks = [];
+    blocks.push({ t: 'line', text: headLabel, size: 10, font: fontB, color: colorInk, lh: 10 * 1.3, gap: 2 });
+
+    const metaBits = [];
+    if (subj) metaBits.push(subj);
+    if (l.className) metaBits.push(l.className);
+    if (metaBits.length) blocks.push({ t: 'line', text: metaBits.join('　'), size: 8.5, font: fontR, color: colorSub, lh: 8.5 * 1.3, gap: 3 });
+
+    if (l.title) {
+      const titleLines = _pdfLibWrap(fontB, l.title, 11, INNER_W, 2);
+      titleLines.forEach((ln, i) => blocks.push({ t: 'line', text: ln, size: 11, font: fontB, color: colorInk, lh: 11 * 1.25, gap: i === titleLines.length - 1 ? 4 : 0 }));
+    }
+
+    const tags = l.tags || [];
+    if (tags.length) blocks.push({ t: 'tags', items: tags, h: 14, gap: 3 });
+
+    if (l.note && l.note.trim()) {
+      const noteLines = _pdfLibWrapMulti(fontR, l.note, 9, INNER_W, 10);
+      noteLines.forEach((ln, i) => blocks.push({ t: 'line', text: ln, size: 9, font: fontR, color: colorNoteInk, lh: 9 * 1.45, gap: i === noteLines.length - 1 ? 4 : 0 }));
+    }
+
+    // 画像：手書き→写真の順で並べ、埋め込みに成功したものだけ表示する。
+    // 枚数が多すぎるとカードが際限なく縦に伸びてしまうため上限を設け、
+    // 上限超過分・埋め込み失敗分はまとめて件数だけ注記する。
+    const imgRefs = [
+      ...(l.hwPages || []).filter(Boolean).map(ref => imgCache[ref]),
+      ...(l.photos || []).map(ph => imgCache[ph.id]),
+    ];
+    const okImgs = imgRefs.filter(Boolean);
+    const failCount = imgRefs.length - okImgs.length;
+    const shownImgs = okImgs.slice(0, MAX_IMAGES);
+    const omittedCount = okImgs.length - shownImgs.length;
+
+    if (shownImgs.length) {
+      let row = [], rowW = 0;
+      shownImgs.forEach(img => {
+        const scale = Math.min(IMG_MAX_W / img.width, IMG_MAX_H / img.height, 1);
+        const w = img.width * scale, h = img.height * scale;
+        if (row.length && rowW + IMG_GAP + w > INNER_W) { blocks.push({ t: 'images', row, h: Math.max(...row.map(r => r.h)), gap: IMG_GAP }); row = []; rowW = 0; }
+        row.push({ img, w, h }); rowW += (row.length > 1 ? IMG_GAP : 0) + w;
+      });
+      if (row.length) blocks.push({ t: 'images', row, h: Math.max(...row.map(r => r.h)), gap: 0 });
+      if (blocks.length && blocks[blocks.length - 1].t === 'images') blocks[blocks.length - 1].gap = 4;
+    }
+    const hiddenTotal = failCount + omittedCount;
+    if (hiddenTotal > 0) {
+      blocks.push({ t: 'line', text: `※表示できない添付が${hiddenTotal}件あります`, size: 7.5, font: fontR, color: colorWarn, lh: 7.5 * 1.3, gap: 0 });
+    }
+
+    const contentH = blocks.reduce((s, b) => s + (b.t === 'line' ? b.lh : b.h) + b.gap, 0);
+    const totalH = PAD * 2 + contentH;
+
+    return {
+      height: totalH,
+      draw(pageRef, x, topY) {
+        pageRef.drawRectangle({ x, y: topY - totalH, width: COL_W, height: totalH, color: colorPanelBg, borderColor: colorBorder, borderWidth: 0.6 });
+        pageRef.drawRectangle({ x, y: topY - totalH, width: 3, height: totalH, color });
+        let cy = topY - PAD;
+        for (const b of blocks) {
+          if (b.t === 'line') {
+            cy -= b.lh * 0.8;
+            if (b.text) pageRef.drawText(b.text, { x: x + PAD, y: cy, size: b.size, font: b.font, color: b.color });
+            cy -= b.lh * 0.2 + b.gap;
+          } else if (b.t === 'tags') {
+            let tx = x + PAD;
+            b.items.forEach(txt => {
+              const tw = fontR.widthOfTextAtSize(txt, 8);
+              pageRef.drawRectangle({ x: tx, y: cy - b.h + 2, width: tw + 10, height: b.h - 2, color: rgb(0.91, 0.93, 0.95) });
+              pageRef.drawText(txt, { x: tx + 5, y: cy - b.h + 6, size: 8, font: fontR, color: colorSub });
+              tx += tw + 16;
+            });
+            cy -= b.h + b.gap;
+          } else if (b.t === 'images') {
+            let ix = x + PAD;
+            b.row.forEach(r => {
+              pageRef.drawImage(r.img, { x: ix, y: cy - b.h, width: r.w, height: r.h });
+              pageRef.drawRectangle({ x: ix, y: cy - b.h, width: r.w, height: r.h, borderColor: colorBorder, borderWidth: 0.5 });
+              ix += r.w + IMG_GAP;
+            });
+            cy -= b.h + b.gap;
+          }
+        }
+      },
+    };
+  };
+
+  // ── 2カラムのうち残り余白が多い方に配置（バランス良く積む）。
+  //    どちらにも入らない場合だけ改ページする＝内容が尽きるまでページを
+  //    消費しない、という「効率よく印刷」の核心部分。 ──
+  for (const item of items) {
+    const plan = planCard(item);
+    let idx = colTop[0] >= colTop[1] ? 0 : 1;
+    if (plan.height > colTop[idx] - MARGIN) {
+      const other = 1 - idx;
+      if (plan.height <= colTop[other] - MARGIN) idx = other;
+      else { newPage(false); idx = 0; }
+    }
+    const x = MARGIN + idx * (COL_W + COL_GAP);
+    plan.draw(page, x, colTop[idx]);
+    colTop[idx] -= plan.height + CARD_GAP;
+  }
 }
 
 async function exportPdf() {
   const type = document.querySelector('input[name="printType"]:checked')?.value || 'weekly';
-  // v11.2.0：週案表はpdf-lib直接描画（ラスタライズ非経由）に変更したため、
-  // html2canvasは詳細メモPDFでのみ必要。週案表だけをダウンロードする時に
-  // html2canvas未読込でブロックしないよう、型ごとに必要なライブラリだけ確認する。
-  if (type === 'weekly') {
-    if (!window.PDFLib || !window.fontkit) { showToast('PDF機能を読み込めませんでした'); return; }
-  } else if (!window.jspdf || !window.html2canvas) {
-    showToast('PDF機能を読み込めませんでした'); return;
-  }
+  // v11.3.0：詳細メモPDFも週案表と同じくpdf-lib直接描画に統一したため、
+  // PDFダウンロードはもうhtml2canvas/jsPDFを使わない（Mistakes M-13〜M-18で
+  // 踏んだラスタライズ経由の不具合を両方の出力から根絶するため）。
+  if (!window.PDFLib || !window.fontkit) { showToast('PDF機能を読み込めませんでした'); return; }
   showToast('PDFを作成中…');
 
-  if (type === 'weekly') {
-    // ラスタライズを一切経由しないため、隠しDOMホスト(_pdfMakeHost)は不要。
-    try {
-      const pdfDoc = await window.PDFLib.PDFDocument.create();
-      await buildWeeklyPdfLib(pdfDoc);
-      const bytes = await pdfDoc.save();
-      const blob = new Blob([bytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `WEEKY-週案表-${formatDate(state.currentWeekStart)}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast('PDFを書き出しました');
-    } catch (e) {
-      showToast('PDFの作成に失敗しました');
-    }
-    return;
-  }
-
-  const host = _pdfMakeHost();
   try {
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-    {
-      const cards = await detailCardHtmls();
-      const header = printHeaderHtml('詳細メモ');
-      if (!cards.length) {
-        const page = document.createElement('div');
-        page.className = 'pdf-page';
-        page.innerHTML = header + `<div class="pd-empty">この週には記録のある授業がありません。</div>`;
-        host.appendChild(page);
-        await _pdfAddPage(pdf, page, true);
-      } else {
-        // A4横1ページに「田の字」＝2×2＝4コマ。4枚ずつページにし、各カードは
-        // .pd-grid--quad（grid-template-rows:1fr 1fr）でぴったり均等割り＝
-        // 内容量に関わらず枠は常に同じ大きさ（要望どおり）。
-        for (let i = 0, pageIndex = 0; i < cards.length; i += 4, pageIndex++) {
-          const page = document.createElement('div');
-          page.className = 'pdf-page';
-          page.style.height = PDF_PAGE_H_PX + 'px';   // A4横の用紙高さに固定
-          page.style.display = 'flex';
-          page.style.flexDirection = 'column';
-          page.style.overflow = 'hidden';
-          if (pageIndex === 0) page.insertAdjacentHTML('beforeend', header);
-          const grid = document.createElement('div');
-          grid.className = 'pd-grid--quad';
-          grid.style.flex = '1 1 auto';
-          grid.style.minHeight = '0';
-          for (let k = i; k < Math.min(i + 4, cards.length); k++) grid.insertAdjacentHTML('beforeend', cards[k]);
-          page.appendChild(grid);
-          host.appendChild(page);
-          await _pdfAddPage(pdf, page, pageIndex === 0, { fixedH: PDF_PAGE_H_PX });
-        }
-      }
-    }
-
-    const s = state.currentWeekStart;
+    const pdfDoc = await window.PDFLib.PDFDocument.create();
+    if (type === 'weekly') await buildWeeklyPdfLib(pdfDoc);
+    else await buildDetailPdfLib(pdfDoc);
+    const bytes = await pdfDoc.save();
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     const label = type === 'detail' ? '詳細メモ' : '週案表';
-    pdf.save(`WEEKY-${label}-${formatDate(s)}.pdf`);
+    a.href = url; a.download = `WEEKY-${label}-${formatDate(state.currentWeekStart)}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
     showToast('PDFを書き出しました');
   } catch (e) {
     showToast('PDFの作成に失敗しました');
-  } finally {
-    host.remove();
   }
 }
 
