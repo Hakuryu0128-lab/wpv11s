@@ -77,6 +77,13 @@
    _pdfAddPage/_pdfWaitImgs の3関数を削除（死んだコードを残さない）。ブラウザ
    印刷（@page）経由の detailCardHtmls/buildDetailPrintHtml はHTML/CSSのまま
    温存（今回の対象は「PDFダウンロード」のみ、実害報告のあった経路に限定）。
+   v11.3.1：ユーザー報告2件を修正。①週案表の授業タイトル（l.title）が実機で見ると
+   v11.2.2の15ptは大きすぎたため10.5ptに縮小。②「アップデートが降りてこない」
+   問題の根本原因を修正（service-worker.js側）。fetch(e.request)はブラウザの
+   HTTPキャッシュを経由するため、GitHub PagesがCache-Control: max-age=600を
+   返すindex.html等は、直近10分以内の読み込み履歴があるとネットワークに
+   問い合わせたつもりでも端末側の古いキャッシュが返っていた。
+   fetch(url, {cache:'no-store'})でHTTPキャッシュ自体を迂回するよう修正。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -84,7 +91,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.3.0';
+const APP_VERSION = '11.3.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -6337,7 +6344,8 @@ async function buildWeeklyPdfLib(pdfDoc) {
     }
 
     // v11.2.2：タイトルを7.5→15pt（約2倍）に拡大。位置も少し下げる（gap 4→7）。
-    const TITLE_SIZE = 15;
+    // v11.3.1：実機で見ると15ptは大きすぎた（ユーザー報告）ため10.5ptに縮小。
+    const TITLE_SIZE = 10.5;
     const TITLE_LINE_H = TITLE_SIZE * 1.2;
     const cy = topY - classRowH - 7;
     const flags = [];
