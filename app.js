@@ -113,6 +113,15 @@
    （.print-type-toggle、選択中の側へ.print-type-toggle-thumbがtranslateXで
    スライド）に変更。カード型より縦に低いため①の省スペース化にも寄与している。
    ⑤PDFダウンロードボタンを右揃えに変更（.print-actionsにjustify-content:flex-end）。
+   ⑥上記③④実装直後のライブ検証で発見・即修正：詳細メモ付き選択時、プレースホル
+   ダー文言が枠の右端で見切れる不具合。原因は#printPreviewScale(box)が
+   position:absoluteのため、週案表プレビュー時に設定したwidth:1230px(=
+   PDF_PAGE_W_PX)のインラインstyleが detail切り替え時に消されずに残っていた
+   こと。かつposition:absoluteな要素は親のdisplay:flex/align-items/
+   justify-contentによる中央寄せの対象にならない（通常フローから外れるため）。
+   detail側でwidth/height/left/topを明示的に'100%'/'0'にリセットし、枠いっぱいに
+   広げた上でプレースホルダー自身(.print-preview-empty)をflexで中央寄せする形に
+   修正。週案表に戻す側でも高さのインラインstyleを毎回クリアするようにした。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -5830,13 +5839,16 @@ function renderPrintPreview() {
     _ensurePrintPreviewCss();
     box.innerHTML = buildWeeklyPrintHtml('px');
     box.style.width = PDF_PAGE_W_PX + 'px';
+    box.style.height = '';
     frame.classList.remove('print-preview-frame--empty');
     _rescalePrintPreview();
   } else {
     frame.classList.add('print-preview-frame--empty');
     box.style.transform = '';
-    box.style.left = '';
-    box.style.top = '';
+    box.style.left = '0';
+    box.style.top = '0';
+    box.style.width = '100%';
+    box.style.height = '100%';
     box.innerHTML = `<div class="print-preview-empty">コマごとの記録を複数ページのPDFにします<br>（プレビューは週案表のみ対応）</div>`;
   }
 }

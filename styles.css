@@ -2789,6 +2789,10 @@ img { max-width: 100%; display: block; }
   pointer-events: none;
 }
 .print-preview-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
   padding: 20px;
   font-size: 13px;
   color: var(--gray-500);
