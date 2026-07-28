@@ -122,6 +122,19 @@
    detail側でwidth/height/left/topを明示的に'100%'/'0'にリセットし、枠いっぱいに
    広げた上でプレースホルダー自身(.print-preview-empty)をflexで中央寄せする形に
    修正。週案表に戻す側でも高さのインラインstyleを毎回クリアするようにした。
+   v11.6.0：デザインをToDo・メモ・名簿・設定と同じ「薄いグラデーション背景の
+   フルブリードレイアウト」に全面刷新（ユーザー指摘：「印刷・PDF」のページ
+   タイトルや各セクションの枠線が不要。他のToDo等と同じような背景グラデー
+   ションでオシャレに）。具体的には.view-page/.view-header(h2)/.settings-section
+   （枠付きカードボックス）を全廃し、代わりに.print-studio（.todo-board-wrapと
+   同式の二重radial-gradient背景）を新設。中身は「週選択＋印刷内容トグルの
+   ツールバー（一行に集約）」「プレビュー（flex:1で主役）」「ヒント＋ダウンロード
+   ボタンのフッター」の3段のみで、見出し(h3)も廃止（週選択ボタンは日付自体が、
+   トグルは選択肢テキスト自体が既に説明になっているため不要と判断）。プレビュー
+   枠はv11.5.0から引き続きborder-radiusなしを維持しつつ、灰色の実線ボーダーも
+   廃止し、ToDoカードと同じ「ほぼ透明な白フチ＋柔らかい影」だけで紙面を浮かせる
+   ガラス風の見せ方に変更。印刷内容トグルも同様にbackdrop-filterのすりガラス
+   質感に変更した。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -129,7 +142,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.5.0';
+const APP_VERSION = '11.6.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

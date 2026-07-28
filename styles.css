@@ -2706,42 +2706,43 @@ img { max-width: 100%; display: block; }
 .import-card span { font-size: 14px; font-weight: 600; color: var(--gray-800); }
 .import-card small { font-size: 12px; color: var(--gray-500); }
 
-.print-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin-top: 4px; }
-
-/* ── 印刷ページ：1画面に収める（v11.5.0） ──
-   他ページの.view-pageはoverflow-y:autoで縦スクロール前提だが、印刷ページは
-   「週を選ぶ／プレビュー／印刷する内容／ダウンロードボタン」を常にスクロール
-   なしで1画面に収めたいという要望のため、印刷ページだけ専用にflexカラム化。
-   プレビュー欄(.settings-section--preview → .print-preview-frame)だけ
-   flex:1+min-height:0にして、他の固定高さ要素を引いた「残りの高さ」を
-   自動的に吸収させる。画面の高さが違う端末でも構造的にはみ出さない。 */
-.view-page--print {
+/* ── 印刷ページ：スタジオ風デザイン（v11.6.0） ──
+   ユーザー指摘：ページタイトル(h2)や各セクションを囲む枠線が野暮ったい／
+   ToDo・メモ・名簿・設定などの「薄いグラデーション背景に浮かぶフルブリード
+   レイアウト」に揃えたい、とのこと。.view-page＋.settings-section（枠線付き
+   カード）を全廃し、ToDo板(.todo-board-wrap)と同じ二重radial-gradient背景の
+   1枚のスタジオ(.print-studio)に作り替えた。中は「週選択＋印刷内容トグルの
+   ツールバー」「プレビュー（主役として残りの縦幅を占有）」「ヒント文＋
+   ダウンロードボタンのフッター」の3段のみで、タイトルも枠線ボックスもない。 */
+.print-studio {
   display: flex;
   flex-direction: column;
+  gap: 18px;
+  height: 100%;
   overflow: hidden;
+  padding: 22px 26px;
+  background:
+    radial-gradient(900px 360px at 0% 0%, color-mix(in srgb, var(--brand) 12%, transparent), transparent),
+    radial-gradient(820px 420px at 100% 100%, color-mix(in srgb, var(--brand-hover) 10%, transparent), transparent),
+    var(--bg-subtle);
 }
-.view-page--print .view-header { flex: 0 0 auto; margin-bottom: 14px; }
-.view-page--print .settings-sections {
-  flex: 1;
-  min-height: 0;
+.print-studio-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
 }
-.view-page--print .settings-section {
-  flex: 0 0 auto;
-  margin-bottom: 0;
-  padding: 14px 20px;
-}
-.view-page--print .settings-section h3 { margin-bottom: 10px; }
-.view-page--print .settings-section--preview {
-  flex: 1;
-  min-height: 0;
+.print-studio-footer {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
 }
-.view-page--print .print-actions { flex: 0 0 auto; margin-top: 12px; }
-.view-page--print .settings-hint { flex: 0 0 auto; margin: 8px 0 0; }
+.print-studio-hint { font-size: 12.5px; color: var(--gray-500); margin: 0; }
 
 /* ── 印刷ページ：週を選ぶ（v11.4.0） ──
    ヘッダーの.week-navと見た目を完全に揃えるため、prev/next/today/週タイトルの
@@ -2757,25 +2758,28 @@ img { max-width: 100%; display: block; }
   position: relative;
 }
 
-/* ── 印刷ページ：週案ミニプレビュー（v11.4.0／v11.5.0で角丸廃止・可変高さ対応） ──
+/* ── 印刷ページ：週案ミニプレビュー（v11.4.0〜v11.6.0） ──
    中身(#printPreviewScale)はbuildWeeklyPrintHtml('px')が返す実際のPDF/印刷と
    同じHTMLをそのまま縮小表示するので、枠の大きさだけ管理すればよい。
    実際のスケール(transform)と位置はJS側(_rescalePrintPreview)で枠の実表示
    サイズから計算して設定する（幅・高さ両方を見るcontain方式、中央寄せ）。
    v11.5.0：紙面の四隅が枠の丸角に隠れて見切れるとの指摘を受け、border-radius
-   を廃止した。また枠がflex:1で可変高さになったため固定heightも廃止。 */
+   は廃止のまま維持。v11.6.0：グレーの実線ボーダーもやめ、ToDoカードと同じ
+   「ほぼ透明な白フチ＋柔らかい影」だけで紙面を浮かせるガラス風の見せ方に変更
+   （はっきりした枠線は使わないが、真っ白な紙面と背景グラデーションとの
+   コントラストと影だけで十分「紙」として認識できる）。 */
 .print-preview-frame {
   position: relative;
   flex: 1;
   min-height: 0;
-  max-height: 420px;
+  max-height: 640px;
   width: 100%;
-  max-width: 560px;
+  max-width: 760px;
   align-self: center;
   overflow: hidden;
-  border: 1px solid var(--border);
   background: #fff;
-  box-shadow: var(--shadow);
+  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
+  box-shadow: 0 14px 40px rgba(16,24,40,.14), inset 0 1px 0 rgba(255,255,255,.6);
 }
 .print-preview-frame.print-preview-frame--empty {
   display: flex;
@@ -2806,14 +2810,21 @@ img { max-width: 100%; display: block; }
    構造：track(.print-type-toggle)の中に、選択位置を示すつまみ
    (.print-type-toggle-thumb)と2つのラベル(.print-type-opt)を重ねて配置。
    つまみの位置は「.print-type-opt:has(input:checked)が何番目か」をtrack側の
-   :has()で判定してtranslateXするだけで、JS側の分岐を増やさず純CSSで完結する。 */
+   :has()で判定してtranslateXするだけで、JS側の分岐を増やさず純CSSで完結する。
+   v11.6.0：スタジオ化に伴い、track自体もToDo系と同じすりガラス質感
+   （半透明＋backdrop-filter）に変更し、グレー背景よりも背景グラデーション
+   と馴染むようにした。 */
 .print-type-toggle {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background: var(--gray-100);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
   border-radius: var(--radius-lg);
   padding: 4px;
+  box-shadow: 0 8px 22px rgba(16,24,40,.08);
 }
 .print-type-toggle-thumb {
   position: absolute;
@@ -2836,7 +2847,7 @@ img { max-width: 100%; display: block; }
   align-items: center;
   justify-content: center;
   gap: 1px;
-  padding: 10px 12px;
+  padding: 10px 14px;
   cursor: pointer;
   text-align: center;
   border-radius: calc(var(--radius-lg) - 4px);
@@ -2860,6 +2871,11 @@ img { max-width: 100%; display: block; }
 .print-type-opt:has(input:checked) .print-type-opt-text strong,
 .print-type-opt:has(input:checked) .print-type-opt-text small {
   color: var(--gray-800);
+}
+
+@media (max-width: 560px) {
+  .print-studio-toolbar { flex-direction: column; align-items: stretch; }
+  .print-type-toggle { width: 100%; }
 }
 
 /* ── Settings ────────────────────────────────────────────── */
@@ -2888,7 +2904,6 @@ img { max-width: 100%; display: block; }
   color: var(--brand-dark); font-weight: 700;
 }
 .settings-detail { flex: 1; overflow-y: auto; padding: 28px 32px; max-width: 760px; margin-inline: auto; }
-.settings-sections { display: flex; flex-direction: column; gap: 24px; }
 .settings-section {
   background: var(--bg);
   border: 1px solid var(--border);

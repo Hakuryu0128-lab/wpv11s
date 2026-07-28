@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.5.0" />
+  <link rel="stylesheet" href="styles.css?v=11.6.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -584,55 +584,42 @@
 
         <!-- 印刷 -->
         <div class="view" id="view-print">
-          <div class="view-page view-page--print">
-            <div class="view-header"><h2>印刷・PDF</h2></div>
+          <div class="print-studio" id="printStudio">
+            <div class="print-studio-toolbar">
+              <div class="print-week-nav" role="group" aria-label="印刷する週を選ぶ">
+                <button class="week-nav-btn" id="printPrevWeekBtn" type="button" aria-label="前の週へ">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="week-title" id="printWeekTitleBtn" type="button" aria-haspopup="dialog" title="日付を選んで週を移動"></button>
+                <button class="week-nav-btn" id="printNextWeekBtn" type="button" aria-label="次の週へ">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="today-btn" id="printTodayBtn" type="button">今週</button>
+              </div>
 
-            <div class="settings-sections">
-              <!-- 週を選ぶ -->
-              <section class="settings-section">
-                <h3>週を選ぶ</h3>
-                <div class="print-week-nav" role="group" aria-label="印刷する週を選ぶ">
-                  <button class="week-nav-btn" id="printPrevWeekBtn" type="button" aria-label="前の週へ">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </button>
-                  <button class="week-title" id="printWeekTitleBtn" type="button" aria-haspopup="dialog" title="日付を選んで週を移動"></button>
-                  <button class="week-nav-btn" id="printNextWeekBtn" type="button" aria-label="次の週へ">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </button>
-                  <button class="today-btn" id="printTodayBtn" type="button">今週</button>
-                </div>
-              </section>
-
-              <!-- プレビュー -->
-              <section class="settings-section settings-section--preview">
-                <h3>プレビュー</h3>
-                <div class="print-preview-frame" id="printPreviewFrame">
-                  <div class="print-preview-scale" id="printPreviewScale"></div>
-                </div>
-              </section>
-
-              <!-- 種類を選ぶ -->
-              <section class="settings-section">
-                <h3>印刷する内容</h3>
-                <div class="print-type-toggle" role="radiogroup" aria-label="印刷する内容">
-                  <span class="print-type-toggle-thumb" aria-hidden="true"></span>
-                  <label class="print-type-opt">
-                    <input type="radio" name="printType" value="weekly" checked />
-                    <span class="print-type-opt-text"><strong>週案表</strong><small>A4横・1枚に週全体</small></span>
-                  </label>
-                  <label class="print-type-opt">
-                    <input type="radio" name="printType" value="detail" />
-                    <span class="print-type-opt-text"><strong>詳細メモ付き</strong><small>A4横・コマごとに記録</small></span>
-                  </label>
-                </div>
-              </section>
+              <div class="print-type-toggle" role="radiogroup" aria-label="印刷する内容">
+                <span class="print-type-toggle-thumb" aria-hidden="true"></span>
+                <label class="print-type-opt">
+                  <input type="radio" name="printType" value="weekly" checked />
+                  <span class="print-type-opt-text"><strong>週案表</strong><small>A4横・1枚に週全体</small></span>
+                </label>
+                <label class="print-type-opt">
+                  <input type="radio" name="printType" value="detail" />
+                  <span class="print-type-opt-text"><strong>詳細メモ付き</strong><small>A4横・コマごとに記録</small></span>
+                </label>
+              </div>
             </div>
 
-            <div class="print-actions">
+            <div class="print-preview-frame" id="printPreviewFrame">
+              <div class="print-preview-scale" id="printPreviewScale"></div>
+            </div>
+
+            <div class="print-studio-footer">
+              <p class="print-studio-hint">ダウンロードしたPDFは、iPadの「ファイル」アプリや共有メニューからそのまま印刷できます。</p>
               <button class="btn-primary btn-lg" id="exportPdfBtn">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                   <path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -641,7 +628,6 @@
                 PDFをダウンロード
               </button>
             </div>
-            <p class="settings-hint">ダウンロードしたPDFは、iPadの「ファイル」アプリや共有メニューからそのまま印刷できます。</p>
           </div>
         </div>
 
@@ -1334,6 +1320,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.5.0"></script>
+<script src="app.js?v=11.6.0"></script>
 </body>
 </html>
