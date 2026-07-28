@@ -2706,7 +2706,42 @@ img { max-width: 100%; display: block; }
 .import-card span { font-size: 14px; font-weight: 600; color: var(--gray-800); }
 .import-card small { font-size: 12px; color: var(--gray-500); }
 
-.print-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+.print-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin-top: 4px; }
+
+/* ── 印刷ページ：1画面に収める（v11.5.0） ──
+   他ページの.view-pageはoverflow-y:autoで縦スクロール前提だが、印刷ページは
+   「週を選ぶ／プレビュー／印刷する内容／ダウンロードボタン」を常にスクロール
+   なしで1画面に収めたいという要望のため、印刷ページだけ専用にflexカラム化。
+   プレビュー欄(.settings-section--preview → .print-preview-frame)だけ
+   flex:1+min-height:0にして、他の固定高さ要素を引いた「残りの高さ」を
+   自動的に吸収させる。画面の高さが違う端末でも構造的にはみ出さない。 */
+.view-page--print {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.view-page--print .view-header { flex: 0 0 auto; margin-bottom: 14px; }
+.view-page--print .settings-sections {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.view-page--print .settings-section {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  padding: 14px 20px;
+}
+.view-page--print .settings-section h3 { margin-bottom: 10px; }
+.view-page--print .settings-section--preview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.view-page--print .print-actions { flex: 0 0 auto; margin-top: 12px; }
+.view-page--print .settings-hint { flex: 0 0 auto; margin: 8px 0 0; }
 
 /* ── 印刷ページ：週を選ぶ（v11.4.0） ──
    ヘッダーの.week-navと見た目を完全に揃えるため、prev/next/today/週タイトルの
@@ -2722,23 +2757,30 @@ img { max-width: 100%; display: block; }
   position: relative;
 }
 
-/* ── 印刷ページ：週案ミニプレビュー（v11.4.0） ──
+/* ── 印刷ページ：週案ミニプレビュー（v11.4.0／v11.5.0で角丸廃止・可変高さ対応） ──
    中身(#printPreviewScale)はbuildWeeklyPrintHtml('px')が返す実際のPDF/印刷と
    同じHTMLをそのまま縮小表示するので、枠の大きさだけ管理すればよい。
-   実際のスケール(transform)と高さはJS側(_rescalePrintPreview)で
-   枠の実表示幅から計算して設定する。 */
+   実際のスケール(transform)と位置はJS側(_rescalePrintPreview)で枠の実表示
+   サイズから計算して設定する（幅・高さ両方を見るcontain方式、中央寄せ）。
+   v11.5.0：紙面の四隅が枠の丸角に隠れて見切れるとの指摘を受け、border-radius
+   を廃止した。また枠がflex:1で可変高さになったため固定heightも廃止。 */
 .print-preview-frame {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  max-height: 420px;
   width: 100%;
-  max-width: 480px;
+  max-width: 560px;
+  align-self: center;
   overflow: hidden;
-  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: #fff;
   box-shadow: var(--shadow);
 }
 .print-preview-frame.print-preview-frame--empty {
-  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .print-preview-scale {
   position: absolute;
@@ -2747,10 +2789,6 @@ img { max-width: 100%; display: block; }
   pointer-events: none;
 }
 .print-preview-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 140px;
   padding: 20px;
   font-size: 13px;
   color: var(--gray-500);
@@ -2758,53 +2796,66 @@ img { max-width: 100%; display: block; }
   line-height: 1.7;
 }
 
-/* ── 印刷ページ：印刷する内容（週案表 / 詳細メモ）を選ぶカード（v11.4.0） ──
-   .import-card（バックアップ画面の書き出し/復元カード）と同じ質感に揃えつつ、
-   ラジオボタンとして選択状態を:has()で見た目に反映する。 */
-.print-type-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-}
-.print-type-card {
+/* ── 印刷ページ：印刷する内容（週案表 / 詳細メモ）トグルスイッチ（v11.5.0） ──
+   カード2枚並び（:has(input:checked)でハイライト）から、選択中の側へ
+   つまみがスライドするiOS風トグルスイッチに変更（モード切替感を出す要望）。
+   構造：track(.print-type-toggle)の中に、選択位置を示すつまみ
+   (.print-type-toggle-thumb)と2つのラベル(.print-type-opt)を重ねて配置。
+   つまみの位置は「.print-type-opt:has(input:checked)が何番目か」をtrack側の
+   :has()で判定してtranslateXするだけで、JS側の分岐を増やさず純CSSで完結する。 */
+.print-type-toggle {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--gray-100);
   border-radius: var(--radius-lg);
-  border: 1.5px solid var(--border);
-  background: var(--bg);
-  cursor: pointer;
-  transition: border-color var(--fast), background var(--fast), box-shadow var(--fast);
+  padding: 4px;
 }
-.print-type-card:hover { border-color: var(--gray-300); }
-.print-type-card input {
+.print-type-toggle-thumb {
+  position: absolute;
+  top: 4px; left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  background: var(--bg);
+  border-radius: calc(var(--radius-lg) - 4px);
+  box-shadow: var(--shadow);
+  transition: transform var(--fast);
+}
+.print-type-toggle:has(.print-type-opt:nth-of-type(2) input:checked) .print-type-toggle-thumb {
+  transform: translateX(100%);
+}
+.print-type-opt {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: center;
+  border-radius: calc(var(--radius-lg) - 4px);
+}
+.print-type-opt input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
 }
-.print-type-card:has(input:checked) {
-  border-color: var(--brand);
-  background: color-mix(in srgb, var(--brand) 8%, var(--bg));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
-}
-.print-type-icon {
-  flex-shrink: 0;
-  width: 40px; height: 40px;
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--gray-100);
+.print-type-opt-text strong {
+  font-size: 14px;
+  font-weight: 700;
   color: var(--gray-500);
-  transition: background var(--fast), color var(--fast);
+  transition: color var(--fast);
 }
-.print-type-card:has(input:checked) .print-type-icon { background: var(--brand); color: #fff; }
-.print-type-text { display: flex; flex-direction: column; gap: 2px; }
-.print-type-text strong { font-size: 14.5px; font-weight: 700; color: var(--gray-800); }
-.print-type-text small { font-size: 12px; color: var(--gray-500); }
-
-@media (max-width: 480px) {
-  .print-type-cards { grid-template-columns: 1fr; }
+.print-type-opt-text small {
+  font-size: 11.5px;
+  color: var(--gray-400);
+  transition: color var(--fast);
+}
+.print-type-opt:has(input:checked) .print-type-opt-text strong,
+.print-type-opt:has(input:checked) .print-type-opt-text small {
+  color: var(--gray-800);
 }
 
 /* ── Settings ────────────────────────────────────────────── */

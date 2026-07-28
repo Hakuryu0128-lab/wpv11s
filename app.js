@@ -97,6 +97,22 @@
    の4つを削除（呼び出し元がなくなったため）。カレンダーポップオーバー(#weekCalPop)
    は単一DOM要素をヘッダー・印刷ページ両方のweek-titleボタンで使い回す設計に変更
    （どちらのボタンが開いたかを_calAnchorBtnで管理し、開くたびにその場へ再配置）。
+   v11.5.0：印刷ページの微調整（ユーザーフィードバック）。①画面がスクロールしないと
+   PDFダウンロードボタンまで見えなかった問題を解消。.view-page--printを専用の
+   flexカラムにし、「週を選ぶ」「印刷する内容」「ボタン」は自然な高さのまま、
+   プレビュー欄(.print-preview-frame)だけflex:1+min-height:0で残りの縦幅を吸収する
+   構成に変更（画面の高さが違う端末でも、常にその場で余った分だけプレビューが
+   伸び縮みする＝スクロール不要が構造的に保証される）。②プレビューがflexで可変
+   サイズになったため、_rescalePrintPreview()の拡大率計算を「幅基準のみ」から
+   「幅と高さ両方で計算しmin()を採用（＝contain方式）」に変更し、プレビュー用の
+   紙面(#printPreviewScale)を中央に配置するようleft/topもJS側で計算するよう修正。
+   幅基準のみだと高さが枠からはみ出す可能性があったため。③プレビュー枠の角丸
+   （border-radius）を廃止（ユーザー指摘：「角が見切れる」＝紙面の四隅がプレビュー
+   枠の丸角の内側に隠れて見えてしまっていた）。④印刷する内容の選択UIを、カード
+   2枚並び（:has(input:checked)でハイライト）から、iOS風の1本のトグルスイッチ
+   （.print-type-toggle、選択中の側へ.print-type-toggle-thumbがtranslateXで
+   スライド）に変更。カード型より縦に低いため①の省スペース化にも寄与している。
+   ⑤PDFダウンロードボタンを右揃えに変更（.print-actionsにjustify-content:flex-end）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -104,7 +120,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.4.0';
+const APP_VERSION = '11.5.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -5818,22 +5834,28 @@ function renderPrintPreview() {
     _rescalePrintPreview();
   } else {
     frame.classList.add('print-preview-frame--empty');
-    frame.style.height = '';
     box.style.transform = '';
+    box.style.left = '';
+    box.style.top = '';
     box.innerHTML = `<div class="print-preview-empty">コマごとの記録を複数ページのPDFにします<br>（プレビューは週案表のみ対応）</div>`;
   }
 }
 
-/* コンテンツは作り直さず、枠の実表示幅に合わせて拡大率だけ再計算する
-   （リサイズ時用の軽量版）。 */
+/* コンテンツは作り直さず、枠の実表示サイズに合わせて拡大率だけ再計算する
+   （リサイズ時用の軽量版）。v11.5.0：プレビュー枠がflex:1で可変高さになったため、
+   幅基準だけでなく高さ基準でも拡大率を求め、小さい方(min)を採用する「contain」
+   方式に変更（＝どちらの軸もはみ出さない）。余った軸は中央寄せする。 */
 function _rescalePrintPreview() {
   const frame = document.getElementById('printPreviewFrame');
   const box = document.getElementById('printPreviewScale');
   if (!frame || !box || frame.classList.contains('print-preview-frame--empty')) return;
-  const scale = frame.clientWidth / PDF_PAGE_W_PX;
-  if (!scale || !isFinite(scale)) return;
+  const scaleW = frame.clientWidth / PDF_PAGE_W_PX;
+  const scaleH = frame.clientHeight / PDF_PAGE_H_PX;
+  const scale = Math.min(scaleW, scaleH);
+  if (!scale || !isFinite(scale) || scale <= 0) return;
   box.style.transform = `scale(${scale})`;
-  frame.style.height = Math.round(PDF_PAGE_H_PX * scale) + 'px';
+  box.style.left = Math.round((frame.clientWidth - PDF_PAGE_W_PX * scale) / 2) + 'px';
+  box.style.top = Math.round((frame.clientHeight - PDF_PAGE_H_PX * scale) / 2) + 'px';
 }
 
 /* Shared print header: title (week range) + owner (teacher / school).
