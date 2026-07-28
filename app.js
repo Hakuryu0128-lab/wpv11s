@@ -84,6 +84,19 @@
    返すindex.html等は、直近10分以内の読み込み履歴があるとネットワークに
    問い合わせたつもりでも端末側の古いキャッシュが返っていた。
    fetch(url, {cache:'no-store'})でHTTPキャッシュ自体を迂回するよう修正。
+   v11.4.0：印刷・PDFページを全面刷新（ユーザー要望）。①週案ページで週を選んで
+   からでないと印刷したい週を変えられなかった問題を解消し、印刷ページ単体に
+   週選択（前後移動／週タイトルからカレンダー／今週ボタン、ヘッダーと同じ部品を
+   再利用）を追加。②選択中の週の小さな週案プレビューを追加（buildWeeklyPrintHtml
+   がPDFダウンロードと全く同じHTMLを返すのを縮小表示するだけなので、プレビューと
+   実際の出力が構造的にズレない）。③印刷するボタンを廃止し、PDFダウンロード後に
+   そのPDFを印刷する導線一本に統一（旧printDocument/doPrintの iframe印刷経路は
+   削除）。④週案表／詳細メモの選択UIを、アイコン付きの選択カード（:has(input:checked)
+   でハイライト）に刷新し、バックアップ画面のカードと質感を揃えた。これに伴い、
+   doPrint専用だったprintDocument/PRINT_CSS/buildDetailPrintHtml/detailCardHtmls
+   の4つを削除（呼び出し元がなくなったため）。カレンダーポップオーバー(#weekCalPop)
+   は単一DOM要素をヘッダー・印刷ページ両方のweek-titleボタンで使い回す設計に変更
+   （どちらのボタンが開いたかを_calAnchorBtnで管理し、開くたびにその場へ再配置）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -91,7 +104,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.3.1';
+const APP_VERSION = '11.4.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -1217,17 +1230,26 @@ function renderWeekTitle() {
 }
 
 /* ── In-app calendar popover ─────────────────────────────── */
+// v11.4.0：印刷ページにも「週を選ぶ」用のweek-titleボタンを追加したため、
+// カレンダーポップオーバー(#weekCalPop)は単一のDOM要素を、開いた側のボタンの
+// 親コンテナへ再度appendChildして使い回す（ヘッダー用・印刷ページ用の2実装を
+// 増やさないための一元化）。_calAnchorBtnに「今回どのボタンが開いたか」を
+// 覚えておき、外側クリック判定と次回のtoggle判定に使う。
 let _calMonth = null; // first day of the month currently shown in the calendar
+let _calAnchorBtn = null;
 
-function toggleWeekCalendar() {
+function toggleWeekCalendar(btn, container) {
   const pop = document.getElementById('weekCalPop');
   if (!pop) return;
-  if (pop.hidden) openWeekCalendar(); else closeWeekCalendar();
+  if (!pop.hidden && _calAnchorBtn === btn) { closeWeekCalendar(); return; }
+  openWeekCalendar(btn, container);
 }
 
-function openWeekCalendar() {
+function openWeekCalendar(btn, container) {
   const pop = document.getElementById('weekCalPop');
   if (!pop) return;
+  if (container && pop.parentElement !== container) container.appendChild(pop);
+  _calAnchorBtn = btn || null;
   const s = state.currentWeekStart;
   _calMonth = new Date(s.getFullYear(), s.getMonth(), 1);
   renderWeekCalendar();
@@ -1239,14 +1261,14 @@ function openWeekCalendar() {
 function closeWeekCalendar() {
   const pop = document.getElementById('weekCalPop');
   if (pop) pop.hidden = true;
+  _calAnchorBtn = null;
   document.removeEventListener('click', _calOutsideClick, true);
 }
 
 function _calOutsideClick(e) {
   const pop = document.getElementById('weekCalPop');
-  const title = document.getElementById('weekTitle');
   if (!pop) return;
-  if (pop.contains(e.target) || e.target === title) return;
+  if (pop.contains(e.target) || e.target === _calAnchorBtn) return;
   closeWeekCalendar();
 }
 
@@ -1260,6 +1282,7 @@ function pickCalendarDate(dateStr) {
   state.currentWeekStart = getWeekStart(new Date(dateStr + 'T00:00:00'));
   renderWeekTitle();
   renderWeekGrid();
+  if (state.activeView === 'print') { updatePrintWeekRange(); renderPrintPreview(); }
   closeWeekCalendar();
 }
 
@@ -1581,6 +1604,7 @@ function navigateWeek(delta) {
   renderWeekTitle();
   renderWeekGrid();
   updateStats();
+  if (state.activeView === 'print') { updatePrintWeekRange(); renderPrintPreview(); }
 }
 
 function goToToday() {
@@ -1588,6 +1612,7 @@ function goToToday() {
   renderWeekTitle();
   renderWeekGrid();
   updateStats();
+  if (state.activeView === 'print') { updatePrintWeekRange(); renderPrintPreview(); }
 }
 
 /* ── View Switching ──────────────────────────────────────── */
@@ -1602,7 +1627,7 @@ function renderViewContent(viewId) {
   if (viewId === 'roster')      renderRoster();
   if (viewId === 'attendance')  renderAttendance();
   if (viewId === 'evaluation')  renderEvaluation();
-  if (viewId === 'print')       updatePrintWeekRange();
+  if (viewId === 'print')       { updatePrintWeekRange(); renderPrintPreview(); }
 }
 
 let _txTimers = [];
@@ -5755,13 +5780,60 @@ function handlePhotoFiles(files, target) {
 
 /* ── Import / Export ─────────────────────────────────────── */
 /* ── Print ───────────────────────────────────────────────── */
-/* week range label shown on the 印刷 view */
+/* week label shown on the 印刷 view's own week-title button（v11.4.0：
+   ヘッダーのweekTitleと同一フォーマット。印刷ページ単体で週が分かるように）。 */
 function updatePrintWeekRange() {
-  const el = document.getElementById('printWeekRange');
+  const el = document.getElementById('printWeekTitleBtn');
   if (!el) return;
   const s = state.currentWeekStart;
   const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
   el.textContent = `${s.getFullYear()}年 ${fmt(s)}（月）〜 ${fmt(addDays(s,4))}（金）`;
+}
+
+/* v11.4.0：印刷ページ内の小さな週案プレビュー。既存のbuildWeeklyPrintHtml('px')が
+   返す「PDFダウンロードと完全に同じ見た目」のHTMLをそのまま縮小表示することで、
+   別実装によるプレビューと実際の出力のズレを構造的に無くしている。詳細メモ側は
+   コマごとのカードが多数になり縮小表示してもほぼ読めないため、プレビューは
+   週案表のみ対応とし、詳細メモ選択時は簡単な案内文に差し替える。 */
+let _printPreviewCssInjected = false;
+function _ensurePrintPreviewCss() {
+  if (_printPreviewCssInjected) return;
+  const style = document.createElement('style');
+  style.id = 'printPreviewCss';
+  style.textContent = PRINT_COMPONENT_CSS;
+  document.head.appendChild(style);
+  _printPreviewCssInjected = true;
+}
+
+function renderPrintPreview() {
+  const frame = document.getElementById('printPreviewFrame');
+  const box = document.getElementById('printPreviewScale');
+  if (!frame || !box) return;
+  const type = document.querySelector('input[name="printType"]:checked')?.value || 'weekly';
+  if (type === 'weekly') {
+    _ensurePrintPreviewCss();
+    box.innerHTML = buildWeeklyPrintHtml('px');
+    box.style.width = PDF_PAGE_W_PX + 'px';
+    frame.classList.remove('print-preview-frame--empty');
+    _rescalePrintPreview();
+  } else {
+    frame.classList.add('print-preview-frame--empty');
+    frame.style.height = '';
+    box.style.transform = '';
+    box.innerHTML = `<div class="print-preview-empty">コマごとの記録を複数ページのPDFにします<br>（プレビューは週案表のみ対応）</div>`;
+  }
+}
+
+/* コンテンツは作り直さず、枠の実表示幅に合わせて拡大率だけ再計算する
+   （リサイズ時用の軽量版）。 */
+function _rescalePrintPreview() {
+  const frame = document.getElementById('printPreviewFrame');
+  const box = document.getElementById('printPreviewScale');
+  if (!frame || !box || frame.classList.contains('print-preview-frame--empty')) return;
+  const scale = frame.clientWidth / PDF_PAGE_W_PX;
+  if (!scale || !isFinite(scale)) return;
+  box.style.transform = `scale(${scale})`;
+  frame.style.height = Math.round(PDF_PAGE_H_PX * scale) + 'px';
 }
 
 /* Shared print header: title (week range) + owner (teacher / school).
@@ -5880,65 +5952,13 @@ const PRINT_COMPONENT_CSS = `
   .pd-empty { font-size: 12px; color: #666; padding: 20px 4px; }
 `;
 
-/* 印刷ドキュメント用の自己完結CSS（iframe印刷・主にMac用フォールバック）。
-   @pageの余白はPDF出力(PDF_A4.margin)と同じ5mmに統一。フォントもWindowsで
-   日本語が確実にHiragino相当の見た目（≒行の折り返し量）になるよう、
-   Segoe UIより先にWindows標準の日本語フォントを指定する（フォントが違うと
-   文字幅が変わり、折り返し行数＝セルの必要高さが端末ごとにズレる一因になる）。 */
-const PRINT_CSS = `
-  @page { size: A4 landscape; margin: 5mm; }
-  html, body { margin: 0; padding: 0; background: #fff; color: #111;
-    -webkit-print-color-adjust: exact; print-color-adjust: exact;
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
-      "Yu Gothic Medium", "Yu Gothic", Meiryo, "Segoe UI", Roboto, sans-serif; }
-` + PRINT_COMPONENT_CSS;
-
-/* 専用iframeに印刷用ドキュメントを書き出して印刷（→ iOSでは「PDFとして保存」が安定） */
-function printDocument(innerHtml) {
-  // 既存の印刷iframeがあれば除去
-  document.getElementById('weekyPrintFrame')?.remove();
-  const frame = document.createElement('iframe');
-  frame.id = 'weekyPrintFrame';
-  frame.setAttribute('aria-hidden', 'true');
-  Object.assign(frame.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0', visibility: 'hidden' });
-  document.body.appendChild(frame);
-
-  const doc = frame.contentWindow.document;
-  doc.open();
-  doc.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
-    <title>WEEKY 印刷</title><style>${PRINT_CSS}</style></head>
-    <body>${innerHtml}</body></html>`);
-  doc.close();
-
-  // 画像（手書き・写真）の読み込みを待ってから印刷
-  const imgs = Array.from(doc.images || []);
-  const waitImgs = Promise.all(imgs.map(img => img.complete
-    ? Promise.resolve()
-    : new Promise(res => { img.onload = img.onerror = res; })));
-
-  // iframeは印刷UIが閉じてから片付ける。早く消すとiOSで印刷UI表示中に
-  // 中身が消えて真っ白／キャンセルになるため、afterprint まで残す。
-  let cleaned = false;
-  const cleanup = () => { if (cleaned) return; cleaned = true; frame.remove(); };
-  waitImgs.then(() => {
-    const w = frame.contentWindow;
-    w.onafterprint = () => setTimeout(cleanup, 400);
-    // afterprint が来ない環境用の保険（長め：印刷中の削除を避ける）
-    setTimeout(cleanup, 60000);
-    setTimeout(() => { w.focus(); try { w.print(); } catch (_) { window.print(); } }, 200);
-  });
-}
-
-async function doPrint() {
-  const type = document.querySelector('input[name="printType"]:checked')?.value || 'weekly';
-  const html = (type === 'detail') ? await buildDetailPrintHtml() : buildWeeklyPrintHtml('mm');
-  printDocument(html);
-}
-
 /* 週案表：A4横1枚に収まる時間割（HTMLを返す）。
-   unit='px' … PDFダウンロード用（html2canvasが読む1040px幅のデザイン単位そのまま）
-   unit='mm' … ブラウザ印刷(@page)用（実寸mm。PDF_PX_PER_MMで換算するので見た目の
-               縦横比はPDF出力と常に一致する＝端末や出力経路が違っても仕上がりが揃う）
+   unit='px' … デザインpx単位そのまま（v11.4.0以降は印刷ページのミニプレビュー
+               表示にも使用。旧PDFダウンロード/旧ブラウザ印刷でも同じ関数を
+               使っていたため、見た目が完全に一致する＝プレビューと実際の
+               出力がズレない）。
+   unit='mm' … 実寸mm換算（現在は未使用の互換用パラメータ。将来また
+               @page印刷等で実寸が必要になった場合のために残してある）。
    v11.1.2：<table>をやめてCSS Grid（.pw-grid）に統一。行の高さは
    grid-template-rowsに一括で渡すことで完全に固定される（テーブル行と違い、
    内容量やフォント幅で勝手に伸びることがない＝実機での「下段消失・ズレ・見切れ」の
@@ -6040,82 +6060,12 @@ function buildWeeklyPrintHtml(unit = 'px') {
     `<div class="pw-grid" style="grid-template-rows:${rowsTemplate}">${cells.join('')}</div></div>`;
 }
 
-/* 詳細メモ：その週の登録済みコマを1枚ずつのカードHTML（配列）にして返す。
-   写真はIndexedDBから取得して dataURL で埋め込む。 */
-async function detailCardHtmls() {
-  const start = state.currentWeekStart;
-  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
-
-  const items = [];
-  for (let d = 0; d < 5; d++) {
-    const date = addDays(start, d);
-    const periodList = ['morning'];
-    for (let p = 1; p <= state.settings.periodsCount; p++) periodList.push(p);
-    periodList.push('after');
-    for (const p of periodList) {
-      const l = state.lessons[lessonKey(date, p)];
-      const has = l && (l.title || (l.note && l.note.trim()) || l.subjectId || l.photos?.length || l.hwPages?.some(Boolean));
-      if (has) items.push({ d, date, p, l });
-    }
-  }
-
-  const photoSrc = {};
-  await Promise.all(items.flatMap(({ l }) =>
-    (l.photos || []).map(async ph => { try { const src = await mediaGet(ph.id); if (src) photoSrc[ph.id] = src; } catch (_) {} })
-  ));
-
-  // resolve handwriting pages (stored in IndexedDB by id) for embedding
-  const hwSrc = {};
-  await Promise.all(items.flatMap(({ l }) =>
-    (l.hwPages || []).filter(Boolean).map(async ref => { try { const src = await hwResolve(ref); if (src) hwSrc[ref] = src; } catch (_) {} })
-  ));
-
-  return items.map(({ d, date, p, l }) => {
-    const subj = getSubjectById(l.subjectId)?.name || '';
-    const color = getSubjectColor(l.subjectId);
-    const periodLabel = periodLabelOf(p);
-    const tags = (l.tags || []).map(t => `<span class="pd-tag">${escHtml(t)}</span>`).join('');
-    const hw = (l.hwPages || []).filter(Boolean).map(ref => hwSrc[ref] ? `<img src="${hwSrc[ref]}" alt="手書き">` : '').join('');
-    const photos = (l.photos || []).map(ph => photoSrc[ph.id] ? `<img src="${photoSrc[ph.id]}" alt="写真">` : '').join('');
-    const media = (hw || photos) ? `<div class="pd-media">${hw}${photos}</div>` : '';
-    return `<div class="pd-card" style="border-left:5px solid ${color}">
-      <div class="pd-card-head">
-        <span class="pd-day">${DAYS[d]}（${fmt(date)}）</span>
-        <span class="pd-period" style="background:${color}">${periodLabel}</span>
-        ${subj ? `<span class="pd-subject">${escHtml(subj)}</span>` : ''}
-        ${l.className ? `<span class="pd-class">${escHtml(l.className)}</span>` : ''}
-        ${l.title ? `<span class="pd-lessontitle">${escHtml(l.title)}</span>` : ''}
-      </div>
-      ${tags ? `<div class="pd-tags">${tags}</div>` : ''}
-      ${l.note && l.note.trim() ? `<div class="pd-note">${escHtml(l.note)}</div>` : ''}
-      ${media}
-    </div>`;
-  });
-}
-
-/* 詳細メモ（ブラウザ印刷/@page用）：A4横1枚＝2×2＝4コマの「田の字」で
-   ページを区切る。週案表と同じくデザインpx(PDF_PAGE_H_PX基準)をmmへ換算して
-   使うので、PDFダウンロード版と見た目の比率が揃う。 */
-async function buildDetailPrintHtml() {
-  const cards = await detailCardHtmls();
-  if (!cards.length) return printHeaderHtml('詳細メモ') + `<div class="pd-empty">この週には記録のある授業がありません。</div>`;
-  const HEADER_H = 60; // デザインpx（週案表と同じ値で統一）
-  const toMm = px => +(px / PDF_PX_PER_MM).toFixed(2);
-  const fullH = toMm(PDF_PAGE_H_PX);
-  const firstH = toMm(PDF_PAGE_H_PX - HEADER_H);
-  let html = printHeaderHtml('詳細メモ', HEADER_H, 'mm', toMm);
-  for (let i = 0, pageIndex = 0; i < cards.length; i += 4, pageIndex++) {
-    const h = pageIndex === 0 ? firstH : fullH;
-    const isLast = i + 4 >= cards.length;
-    const brk = isLast ? '' : 'break-after: page; page-break-after: always;';
-    html += `<div class="pd-grid--quad" style="height:${h}mm; ${brk}">${cards.slice(i, i + 4).join('')}</div>`;
-  }
-  return html;
-}
-
-/* ═══ PDFダウンロード（html2canvas + jsPDF）═══
+/* ═══ PDFダウンロード ═══
    印刷ダイアログを使わず、A4横のPDFファイルを直接ダウンロードする。
-   （iOS Safariは @page の横向きを無視するため、印刷経由では横向きにできない） */
+   （iOS Safariは @page の横向きを無視するため、印刷経由では横向きにできない）。
+   実際の生成はpdf-lib直接描画（buildWeeklyPdfLib/buildDetailPdfLib）で行うが、
+   PDF_PAGE_W_PX等の「デザインpx」定数は印刷ページのミニプレビュー（renderPrintPreview）
+   の縮小率計算にも使うため、ここに残す。 */
 const PDF_PAGE_W_PX = 1230;                         // A4横の内容幅（px相当）
 // v11.1.6：1040→1230。1040*scale3=3120pxは実績あり安全、3390*scale3=10170px
 // (総ピクセル数約72M)は実機でPDF生成失敗（キャンバス上限超過）。1230*scale3=3690px
@@ -7501,7 +7451,7 @@ function bindEvents() {
   /* tap the week title → open the in-app calendar; pick a day to jump weeks */
   q('weekTitle')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    toggleWeekCalendar();
+    toggleWeekCalendar(e.currentTarget, e.currentTarget.closest('.week-nav'));
   });
   q('weekCalPrev')?.addEventListener('click', (e) => { e.stopPropagation(); shiftCalMonth(-1); });
   q('weekCalNext')?.addEventListener('click', (e) => { e.stopPropagation(); shiftCalMonth(1); });
@@ -7764,8 +7714,23 @@ function bindEvents() {
   q('addLessonPhotoBtn')?.addEventListener('click', () => q('photoFileInput')?.click());
 
   /* ── Print / PDF ── */
+  // v11.4.0：印刷ページ単体で週を選べるように、ヘッダーと同じ操作
+  // （前後移動・週タイトルからカレンダーを開く・今週ボタン）をこのページにも用意。
+  // 実体は共通のnavigateWeek/goToToday/toggleWeekCalendarをそのまま呼ぶ
+  // （state.currentWeekStartはアプリ全体で1つだけなので、ヘッダー側と常に同期する）。
+  q('printPrevWeekBtn')?.addEventListener('click', () => navigateWeek(-1));
+  q('printNextWeekBtn')?.addEventListener('click', () => navigateWeek(1));
+  q('printTodayBtn')?.addEventListener('click', goToToday);
+  q('printWeekTitleBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleWeekCalendar(e.currentTarget, e.currentTarget.closest('.print-week-nav'));
+  });
+  document.querySelectorAll('input[name="printType"]').forEach(r =>
+    r.addEventListener('change', renderPrintPreview));
+  window.addEventListener('resize', () => {
+    if (state.activeView === 'print') _rescalePrintPreview();
+  });
   q('exportPdfBtn')?.addEventListener('click', exportPdf);
-  q('printBtn')?.addEventListener('click', doPrint);
 
   /* ── Import / Export ── */
   q('exportJsonBtn')?.addEventListener('click', exportJson);

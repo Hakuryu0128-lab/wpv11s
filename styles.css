@@ -2706,29 +2706,106 @@ img { max-width: 100%; display: block; }
 .import-card span { font-size: 14px; font-weight: 600; color: var(--gray-800); }
 .import-card small { font-size: 12px; color: var(--gray-500); }
 
-.print-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.print-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
 
-.pdf-howto {
-  margin-top: 22px;
-  padding: 14px 16px;
-  background: var(--gray-50);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  max-width: 560px;
-}
-.pdf-howto-title { font-size: 13.5px; font-weight: 700; color: var(--gray-800); margin-bottom: 6px; }
-.pdf-howto p { font-size: 12.5px; color: var(--gray-600); line-height: 1.7; margin: 0; }
-.pdf-howto strong { color: var(--brand); font-weight: 700; }
-
-.print-options { display: flex; gap: 16px; margin-bottom: 20px; }
-.print-radio {
+/* ── 印刷ページ：週を選ぶ（v11.4.0） ──
+   ヘッダーの.week-navと見た目を完全に揃えるため、prev/next/today/週タイトルの
+   各ボタンはヘッダーと同じクラス(.week-nav-btn/.week-title/.today-btn)を
+   そのまま使い回している。このラッパーだけ別名にしてあるのは、ヘッダーの
+   .week-navには「週案ページ以外では隠す」というルール(body:not([data-view="weekly"])
+   .week-nav{visibility:hidden})があり、同じクラス名だとこのページでも隠れて
+   しまうため。 */
+.print-week-nav {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
-  cursor: pointer;
+  position: relative;
 }
-.print-radio input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
+
+/* ── 印刷ページ：週案ミニプレビュー（v11.4.0） ──
+   中身(#printPreviewScale)はbuildWeeklyPrintHtml('px')が返す実際のPDF/印刷と
+   同じHTMLをそのまま縮小表示するので、枠の大きさだけ管理すればよい。
+   実際のスケール(transform)と高さはJS側(_rescalePrintPreview)で
+   枠の実表示幅から計算して設定する。 */
+.print-preview-frame {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.print-preview-frame.print-preview-frame--empty {
+  height: 140px;
+}
+.print-preview-scale {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: top left;
+  pointer-events: none;
+}
+.print-preview-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 140px;
+  padding: 20px;
+  font-size: 13px;
+  color: var(--gray-500);
+  text-align: center;
+  line-height: 1.7;
+}
+
+/* ── 印刷ページ：印刷する内容（週案表 / 詳細メモ）を選ぶカード（v11.4.0） ──
+   .import-card（バックアップ画面の書き出し/復元カード）と同じ質感に揃えつつ、
+   ラジオボタンとして選択状態を:has()で見た目に反映する。 */
+.print-type-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.print-type-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color var(--fast), background var(--fast), box-shadow var(--fast);
+}
+.print-type-card:hover { border-color: var(--gray-300); }
+.print-type-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.print-type-card:has(input:checked) {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 8%, var(--bg));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.print-type-icon {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--gray-100);
+  color: var(--gray-500);
+  transition: background var(--fast), color var(--fast);
+}
+.print-type-card:has(input:checked) .print-type-icon { background: var(--brand); color: #fff; }
+.print-type-text { display: flex; flex-direction: column; gap: 2px; }
+.print-type-text strong { font-size: 14.5px; font-weight: 700; color: var(--gray-800); }
+.print-type-text small { font-size: 12px; color: var(--gray-500); }
+
+@media (max-width: 480px) {
+  .print-type-cards { grid-template-columns: 1fr; }
+}
 
 /* ── Settings ────────────────────────────────────────────── */
 /* iPad-style settings: master (left) + detail (right) */
