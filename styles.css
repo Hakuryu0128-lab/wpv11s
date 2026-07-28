@@ -2878,6 +2878,35 @@ img { max-width: 100%; display: block; }
   .print-type-toggle { width: 100%; }
 }
 
+/* ── フルブリード背景グラデーション（v11.7.0） ──
+   ToDo(.todo-board-wrap)・印刷(.print-studio)・名簿(.roster-manager)・
+   設定(.settings-app)で使っている「二重radial-gradient + var(--bg-subtle)」の
+   薄い背景を、進度・月行事・写真・出席・評価・バックアップの6ページにも展開
+   （ユーザー要望：見た目をアプリ全体で揃えたい）。
+   これらのページは中身が.view-page（max-width:1000pxで中央寄せ・左右に
+   余白ができる）のままなので、.view-page自身に背景を付けると左右の余白との
+   間に背景色の継ぎ目が見えてしまう。他ページと同じく、フルブリードの親である
+   .view側に背景を持たせることで、余白部分も含め画面全体に継ぎ目なく広がる。
+   出席・評価は学級カラーに合わせた配色にするため、他ページの var(--brand) では
+   なく var(--student) を使用（.roster-manager 等、既存の生徒系フルブリード
+   ビューと同じ配色ルール）。 */
+#view-progress,
+#view-events,
+#view-photos,
+#view-import {
+  background:
+    radial-gradient(900px 360px at 0% 0%, color-mix(in srgb, var(--brand) 12%, transparent), transparent),
+    radial-gradient(820px 420px at 100% 100%, color-mix(in srgb, var(--brand-hover) 10%, transparent), transparent),
+    var(--bg-subtle);
+}
+#view-attendance,
+#view-evaluation {
+  background:
+    radial-gradient(900px 360px at 0% 0%, color-mix(in srgb, var(--student) 14%, transparent), transparent),
+    radial-gradient(820px 420px at 100% 100%, color-mix(in srgb, var(--student) 10%, transparent), transparent),
+    var(--bg-subtle);
+}
+
 /* ── Settings ────────────────────────────────────────────── */
 /* iPad-style settings: master (left) + detail (right) */
 .settings-app {

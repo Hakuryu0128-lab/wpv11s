@@ -135,6 +135,17 @@
    廃止し、ToDoカードと同じ「ほぼ透明な白フチ＋柔らかい影」だけで紙面を浮かせる
    ガラス風の見せ方に変更。印刷内容トグルも同様にbackdrop-filterのすりガラス
    質感に変更した。
+   v11.7.0：v11.6.0で印刷ページに導入した「二重radial-gradient＋var(--bg-subtle)」
+   の薄いフルブリード背景を、進度・月行事・写真・出席・評価・バックアップの
+   6ページにも展開（ユーザー要望：見た目をアプリ全体で揃えたい）。これらの
+   ページはタイトル(h2)やコンテンツ自体の構成は変更せず（.view-pageのまま）、
+   背景色だけを追加した。.view-pageはmax-width:1000pxで中央寄せされ左右に
+   余白ができるため、.view-page自身に背景を付けると余白との継ぎ目が見えて
+   しまう。そのため他のフルブリードページ同様、親である.view側（画面いっぱい
+   に広がる）に背景を持たせることで継ぎ目なく画面全体に広げた。出席・評価は
+   学級カラーを反映するため他ページのvar(--brand)ではなくvar(--student)を
+   使用（.roster-manager等、既存の生徒系フルブリードビューと同じ配色ルール
+   を踏襲）。app.js側の変更なし（CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -142,7 +153,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.6.0';
+const APP_VERSION = '11.7.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
