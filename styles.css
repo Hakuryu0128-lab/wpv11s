@@ -2566,18 +2566,67 @@ img { max-width: 100%; display: block; }
 .evt-name { width: 180px; min-width: 180px; max-width: 180px; text-align: left; padding: 8px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: sticky; left: 0; z-index: 1; background: var(--bg); }
 .evt-corner { z-index: 3; background: var(--bg-subtle); }
 .evt-num { display: inline-block; min-width: 1.6em; color: var(--gray-400); font-weight: 700; margin-right: 6px; }
-.evt-col { width: 110px; min-width: 110px; }
+.evt-col { width: 132px; min-width: 132px; white-space: normal; vertical-align: top; }
 .evt-col-name { cursor: pointer; border-bottom: 1px dashed var(--gray-300); }
 .evt-col-del { margin-left: 6px; color: var(--gray-300); font-size: 11px; }
 .evt-col-del:hover { color: var(--danger); }
 .evt-add { width: 86px; }
 .evt-add-btn { white-space: nowrap; font-size: 12.5px; font-weight: 700; color: var(--brand); background: var(--brand-light); border-radius: 8px; padding: 6px 10px; }
-.evt-cell { padding: 0; width: 110px; }
+.evt-cell { padding: 0; width: 132px; }
 .evt-input { width: 100%; border: none; background: transparent; padding: 9px 8px; font-size: 15px; text-align: center; }
 .evt-input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--student); border-radius: 6px; }
 .evt-pad { border-right: none; }
 .evt-table tbody tr:nth-child(even) td.evt-name { background: var(--bg-subtle); }
 .evt-table tbody tr:nth-child(even) td.evt-cell { background: color-mix(in srgb, var(--bg-subtle) 50%, var(--bg)); }
+
+/* 評価：項目ごとの満点／観点タグ（v11.9.0） ── ヘッダーセル内、列名の下に
+   小さく並べる。既定は満点100・観点なしで、触らなければ従来どおりの見た目。 */
+.evt-col-meta {
+  display: flex; flex-direction: column; gap: 3px;
+  margin-top: 5px; font-weight: 400; white-space: normal;
+}
+.evt-col-max-wrap {
+  display: flex; align-items: center; gap: 3px;
+  font-size: 10.5px; color: var(--gray-500);
+}
+.evt-col-max {
+  width: 40px; border: 1px solid var(--border); border-radius: 6px;
+  padding: 2px 3px; font-size: 11px; text-align: center; background: var(--bg);
+}
+.evt-col-vp {
+  width: 100%; border: 1px solid var(--border); border-radius: 6px;
+  padding: 2px 3px; font-size: 10px; color: var(--gray-600); background: var(--bg);
+}
+
+/* 評価：合計・平均・評定・観点別の自動集計セル（v11.9.0） ── 得点入力とは
+   別の「読み取り専用」列であることが分かるよう、うっすら色を変えて区別する。 */
+.evt-summary-head { background: color-mix(in srgb, var(--student) 10%, var(--bg-subtle)) !important; }
+.evt-summary-cell {
+  width: 92px; min-width: 92px; padding: 8px 6px; text-align: center;
+  font-size: 13px; font-weight: 600; color: var(--gray-700);
+  background: color-mix(in srgb, var(--student) 5%, var(--bg));
+  white-space: nowrap;
+}
+.evt-vp-cell { font-size: 11.5px; white-space: normal; }
+.evt-grade-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  font-size: 12.5px; font-weight: 800; color: #fff;
+}
+.evt-grade-A { background: #16a34a; }
+.evt-grade-B { background: #2563eb; }
+.evt-grade-C { background: #d97706; }
+.evt-grade-empty { color: var(--gray-300); }
+
+/* 評価：評定基準（A/Bのしきい値％）のインライン設定行（v11.9.0） */
+.evt-grade-rule {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: 13px; color: var(--gray-600); margin: -4px 0 12px;
+}
+.evt-grade-rule input {
+  width: 52px; border: 1px solid var(--border); border-radius: 8px;
+  padding: 4px 6px; font-size: 13px; text-align: center; background: var(--bg);
+}
 
 /* ── Backup / update banners ─────────────────────────────── */
 .backup-banner, .update-banner {
@@ -2937,12 +2986,20 @@ img { max-width: 100%; display: block; }
   color: var(--brand-dark); font-weight: 700;
 }
 .settings-detail { flex: 1; overflow-y: auto; padding: 28px 32px; max-width: 760px; margin-inline: auto; }
+/* v11.9.0：他ページ（ToDo・印刷・進度・出席等）と同じ「グラデーション背景に
+   浮かぶガラス風カード」に統一。旧デザインはグレーの実線ボーダー＋ベタ塗り
+   背景（.print-preview-frame改修前の旧印刷ページと同じ見た目）で、アプリ内で
+   ここだけ浮いていた。半透明の白フチ＋柔らかい影＋軽いブラーに変更し、
+   デザイン言語を揃えた。 */
 .settings-section {
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 86%, #fff);
+  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
   border-radius: var(--radius-lg);
   padding: 22px;
   margin-bottom: 18px;
+  box-shadow: 0 10px 28px rgba(16,24,40,.08), inset 0 1px 0 rgba(255,255,255,.55);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
 }
 .settings-section.hidden { display: none; }
 .settings-section h3 {

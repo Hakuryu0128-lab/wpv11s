@@ -173,6 +173,19 @@
    値や省略時は何もしない（通常起動時の挙動に影響なし）。遷移後は
    history.replaceState()でURLから?view=を除去し、再読み込みや共有時に
    意図せず固定ビューになるのを防いでいる。
+   v11.9.0：改善計画の2項目を実施。①評価タブに合計・平均・評定変換・観点別
+   評価の自動集計を追加。項目（列）ごとに満点（未設定なら100点扱い）と観点
+   （知識・技能／思考・判断・表現／主体的に学習に取り組む態度／なし）を
+   持てるようにし、採点済みの列だけを対象にsum(得点)/sum(満点)*100で％を出す
+   方式にした（列ごとに満点がバラバラでも公平）。評定はA/B/Cの3段階で、
+   しきい値（％）はstate.settings.evalGradeABに保存し表の上のインライン
+   入力でいつでも調整できる。観点別集計列は、そのcolKeyで実際に観点タグが
+   使われている時だけ表示（使っていない先生の画面を複雑にしないため）。
+   得点入力のたびに表全体を再描画するとinputのフォーカスが飛ぶため、
+   evtUpdateRowSummary()でその行の集計セルだけをDOM更新する方式にした。
+   ②設定ページの.settings-sectionを、印刷・ToDo等の他ページと同じガラス風
+   （半透明の白フチ＋柔らかい影＋軽いブラー）に変更し、アプリ全体のデザイン
+   言語に揃えた（旧デザインはグレーの実線ボーダー＋ベタ塗り背景で浮いていた）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -180,7 +193,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.8.0';
+const APP_VERSION = '11.9.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -266,7 +279,8 @@ const state = {
   attendance: {},      // { studentId: { 'YYYY-MM-DD': 'present'|'absent'|'late'|'early' } }
   reception: [],       // [{ date, period, className, studentId, name, time, items:[] }]  QR受付
   evaluations: {},     // { studentId: { subjectId: { grade, memo, scores:{colId:value} } } }
-  evalColumns: {},     // { "schoolId__class__subjectId": [{ id, name }] }  評価表の列（項目）
+  evalColumns: {},     // { "schoolId__class__subjectId": [{ id, name, max, vp }] }  評価表の列（項目）
+                       // max=満点(未設定なら100扱い) vp=観点('' | 'knowledge'知識・技能 | 'thinking'思考・判断・表現 | 'attitude'主体的に学習に取り組む態度)
   settings: {
     teacherName: '',
     schoolName: '',
@@ -287,6 +301,7 @@ const state = {
     lockPin: '',             // 設定中のPIN（数字文字列。''=未設定）
     lockDigits: 4,           // 4 | 6
     lockTimeoutMin: 5,       // 無操作タイムアウト（分）1|3|5|10|30
+    evalGradeAB: { a: 80, b: 50 },  // 評価タブ：評定変換のしきい値（%）。pct>=a→A, pct>=b→B, それ未満→C
   },
   activeView: 'weekly',
   eventsYear: new Date().getFullYear(),
@@ -4851,6 +4866,70 @@ function renderAttendance() {
 }
 
 /* ── Evaluation ──────────────────────────────────────────── */
+/* v11.9.0：合計・平均・評定変換・観点別評価の自動集計を追加。
+   項目（列）ごとに「満点」（未設定なら100点扱い）と「観点」（知識・技能／
+   思考・判断・表現／主体的に学習に取り組む態度／なし）を持てるようにし、
+   採点済みの列だけを対象に sum(得点)/sum(満点)*100 で％を出す方式にした
+   （列ごとに満点がバラバラでも公平に平均・評定へ反映できる）。
+   評定はA/B/Cの3段階。しきい値（％）は state.settings.evalGradeAB に保存し、
+   表の上のインライン入力でいつでも調整できる。観点別の列（知識・技能／
+   思考・判断・表現／主体的に学習に取り組む態度）は、そのcolKeyで実際に
+   使われている観点タグがある時だけ表示し、誰も使っていなければ増やさない
+   （既存のシンプルな使い方をしている先生の画面を複雑にしないため）。 */
+const EVT_VP_LABELS = { knowledge: '知識・技能', thinking: '思考・判断・表現', attitude: '主体的に学習に取り組む態度' };
+const EVT_VP_ORDER = ['knowledge', 'thinking', 'attitude'];
+
+function evtColMax(col) { const v = Number(col?.max); return (isFinite(v) && v > 0) ? v : 100; }
+
+function evtPctToGrade(pct) {
+  if (pct == null) return '';
+  const th = state.settings.evalGradeAB || { a: 80, b: 50 };
+  const a = Number(th.a) || 80, b = Number(th.b) || 50;
+  if (pct >= a) return 'A';
+  if (pct >= b) return 'B';
+  return 'C';
+}
+
+/* 生徒1人・教科1つ分の集計。columns（対象を絞りたい時は観点でフィルタ済みの配列）を渡す。
+   未入力の列は分母・分子どちらにも含めない（部分入力でも公平な％になるように）。 */
+function evtAggregate(sid, subjectId, columns) {
+  let sum = 0, max = 0, any = false;
+  columns.forEach(c => {
+    const raw = state.evaluations[sid]?.[subjectId]?.scores?.[c.id];
+    if (raw === undefined || raw === null || raw === '') return;
+    const v = parseFloat(raw);
+    if (!isFinite(v)) return;
+    sum += v; max += evtColMax(c); any = true;
+  });
+  const pct = any ? (sum / max * 100) : null;
+  return { sum, max, pct, any, grade: evtPctToGrade(pct) };
+}
+
+function evtGradeBadge(agg) {
+  if (!agg.any) return `<span class="evt-grade-empty">—</span>`;
+  return `<span class="evt-grade-badge evt-grade-${agg.grade}">${agg.grade}</span>`;
+}
+
+/* 1行（1生徒）ぶんの合計・平均・評定・観点別セルを再計算してDOMだけ更新する。
+   得点入力のたびに表全体をrenderEvaluation()し直すとinput要素が作り直されて
+   フォーカスが飛ぶため、行内の集計セルだけをピンポイントで書き換える。 */
+function evtUpdateRowSummary(tr, sid, subjectId, columns, usedVp) {
+  if (!tr) return;
+  const overall = evtAggregate(sid, subjectId, columns);
+  const sumEl = tr.querySelector('.evt-sum-val');
+  if (sumEl) sumEl.textContent = overall.any ? `${overall.sum}／${overall.max}` : '—';
+  const pctEl = tr.querySelector('.evt-pct-val');
+  if (pctEl) pctEl.textContent = overall.any ? `${Math.round(overall.pct)}%` : '—';
+  const gradeEl = tr.querySelector('.evt-grade-cell');
+  if (gradeEl) gradeEl.innerHTML = evtGradeBadge(overall);
+  usedVp.forEach(vp => {
+    const vpCols = columns.filter(c => c.vp === vp);
+    const vpAgg = evtAggregate(sid, subjectId, vpCols);
+    const cell = tr.querySelector(`.evt-vp-cell[data-vp="${vp}"]`);
+    if (cell) cell.innerHTML = vpAgg.any ? `${Math.round(vpAgg.pct)}% ${evtGradeBadge(vpAgg)}` : '—';
+  });
+}
+
 function renderEvaluation() {
   fillSchoolSelect(document.getElementById('evalSchoolSelect'));
   fillClassSelect(document.getElementById('evalClassSelect'));
@@ -4878,21 +4957,54 @@ function renderEvaluation() {
   const columns = state.evalColumns[colKey];
 
   const scoreOf = (sid, colId) => state.evaluations[sid]?.[subjectId]?.scores?.[colId] ?? '';
+  const usedVp = EVT_VP_ORDER.filter(vp => columns.some(c => c.vp === vp));
+  const gradeAB = state.settings.evalGradeAB || { a: 80, b: 50 };
 
   const head = `<tr>
     <th class="evt-name evt-corner">氏名</th>
-    ${columns.map(c => `<th class="evt-col"><span class="evt-col-name" data-col="${c.id}" title="クリックで名前変更">${escHtml(c.name)}</span><button class="evt-col-del" data-del="${c.id}" aria-label="${escHtml(c.name)}を削除">✕</button></th>`).join('')}
+    ${columns.map(c => `<th class="evt-col">
+      <span class="evt-col-name" data-col="${c.id}" title="クリックで名前変更">${escHtml(c.name)}</span><button class="evt-col-del" data-del="${c.id}" aria-label="${escHtml(c.name)}を削除">✕</button>
+      <div class="evt-col-meta">
+        <span class="evt-col-max-wrap"><input type="number" class="evt-col-max" data-col="${c.id}" value="${evtColMax(c)}" min="1" aria-label="${escHtml(c.name)}の満点" />点満点</span>
+        <select class="evt-col-vp" data-col="${c.id}" aria-label="${escHtml(c.name)}の観点">
+          <option value="">観点なし</option>
+          ${EVT_VP_ORDER.map(vp => `<option value="${vp}" ${c.vp === vp ? 'selected' : ''}>${EVT_VP_LABELS[vp]}</option>`).join('')}
+        </select>
+      </div>
+    </th>`).join('')}
     <th class="evt-add"><button class="evt-add-btn" id="evtAddCol">＋ 項目</button></th>
+    ${columns.length ? `
+      <th class="evt-col evt-summary-head">合計</th>
+      <th class="evt-col evt-summary-head">平均</th>
+      <th class="evt-col evt-summary-head">評定</th>
+      ${usedVp.map(vp => `<th class="evt-col evt-summary-head">${EVT_VP_LABELS[vp]}</th>`).join('')}
+    ` : ''}
   </tr>`;
 
-  const body = students.map(st => `<tr>
+  const body = students.map(st => {
+    const overall = columns.length ? evtAggregate(st.id, subjectId, columns) : null;
+    return `<tr data-sid="${st.id}">
     <td class="evt-name"><span class="evt-num">${st.number || ''}</span>${escHtml(st.name)}</td>
     ${columns.map(c => `<td class="evt-cell"><input class="evt-input" inputmode="decimal" data-sid="${st.id}" data-col="${c.id}" value="${escHtml(String(scoreOf(st.id, c.id)))}" aria-label="${escHtml(st.name)} ${escHtml(c.name)}" /></td>`).join('')}
     <td class="evt-pad"></td>
-  </tr>`).join('');
+    ${columns.length ? `
+      <td class="evt-summary-cell"><span class="evt-sum-val">${overall.any ? `${overall.sum}／${overall.max}` : '—'}</span></td>
+      <td class="evt-summary-cell"><span class="evt-pct-val">${overall.any ? `${Math.round(overall.pct)}%` : '—'}</span></td>
+      <td class="evt-summary-cell evt-grade-cell">${evtGradeBadge(overall)}</td>
+      ${usedVp.map(vp => {
+        const vpAgg = evtAggregate(st.id, subjectId, columns.filter(c => c.vp === vp));
+        return `<td class="evt-summary-cell evt-vp-cell" data-vp="${vp}">${vpAgg.any ? `${Math.round(vpAgg.pct)}% ${evtGradeBadge(vpAgg)}` : '—'}</td>`;
+      }).join('')}
+    ` : ''}
+  </tr>`;
+  }).join('');
 
   container.innerHTML = `
-    <p class="settings-hint">点数を入力する表です。右上の「＋ 項目」でテスト等の列を増やせます（学級・教科ごとに保存）。</p>
+    <p class="settings-hint">点数を入力する表です。右上の「＋ 項目」でテスト等の列を増やせます（学級・教科ごとに保存）。項目名の下で満点・観点（知識・技能など）を設定すると、右側に合計・平均・評定（観点別も）が自動で出ます。</p>
+    <div class="evt-grade-rule">
+      評定基準：A ≥ <input type="number" id="evalGradeA" min="1" max="100" value="${Number(gradeAB.a) || 80}">%
+      B ≥ <input type="number" id="evalGradeB" min="1" max="100" value="${Number(gradeAB.b) || 50}">%　（未満はC）
+    </div>
     <div class="evt-wrap">
       <table class="evt-table">
         <thead>${head}</thead>
@@ -4900,11 +5012,19 @@ function renderEvaluation() {
       </table>
     </div>`;
 
+  // 評定基準の変更
+  const gradeAInput = container.querySelector('#evalGradeA');
+  const gradeBInput = container.querySelector('#evalGradeB');
+  [gradeAInput, gradeBInput].forEach(inp => inp?.addEventListener('change', () => {
+    const a = Number(gradeAInput.value) || 80, b = Number(gradeBInput.value) || 50;
+    state.settings.evalGradeAB = { a, b };
+    save(); renderEvaluation();
+  }));
   // 項目（列）を追加
   container.querySelector('#evtAddCol')?.addEventListener('click', async () => {
     const name = await customPrompt('項目名（例：1学期中間 / 小テスト①）', `項目${columns.length + 1}`);
     if (name === null) return;
-    columns.push({ id: 'col_' + uid(), name: (name || '').trim() || `項目${columns.length + 1}` });
+    columns.push({ id: 'col_' + uid(), name: (name || '').trim() || `項目${columns.length + 1}`, max: 100, vp: '' });
     save(); renderEvaluation();
   });
   // 列名の変更
@@ -4922,7 +5042,20 @@ function renderEvaluation() {
     students.forEach(st => { const sc = state.evaluations[st.id]?.[subjectId]?.scores; if (sc) delete sc[col.id]; });
     save(); renderEvaluation();
   }));
-  // 点数入力
+  // 満点の変更
+  container.querySelectorAll('.evt-col-max').forEach(inp => inp.addEventListener('change', () => {
+    const col = columns.find(c => c.id === inp.dataset.col); if (!col) return;
+    const v = Number(inp.value);
+    col.max = (isFinite(v) && v > 0) ? v : 100;
+    save(); renderEvaluation();
+  }));
+  // 観点の変更
+  container.querySelectorAll('.evt-col-vp').forEach(sel => sel.addEventListener('change', () => {
+    const col = columns.find(c => c.id === sel.dataset.col); if (!col) return;
+    col.vp = sel.value || '';
+    save(); renderEvaluation();
+  }));
+  // 点数入力（行の合計・平均・評定はDOMだけその場で更新し、表全体は再描画しない＝入力中にフォーカスが飛ばない）
   container.querySelectorAll('.evt-input').forEach(inp => inp.addEventListener('input', () => {
     const sid = inp.dataset.sid, colId = inp.dataset.col;
     if (!state.evaluations[sid]) state.evaluations[sid] = {};
@@ -4930,6 +5063,7 @@ function renderEvaluation() {
     if (!state.evaluations[sid][subjectId].scores) state.evaluations[sid][subjectId].scores = {};
     state.evaluations[sid][subjectId].scores[colId] = inp.value;
     save();
+    evtUpdateRowSummary(inp.closest('tr'), sid, subjectId, columns, usedVp);
   }));
 }
 
