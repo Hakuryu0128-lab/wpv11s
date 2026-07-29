@@ -155,6 +155,15 @@
    .att-grid-wrap／.abs-wrap／.eval-list）に background: var(--bg) を一括で
    付与し、表全体を不透明な1枚の板として下のグラデーションを遮断する方式にした
    （抜け漏れが起きにくい）。app.js側の変更なし（CSSのみ）。
+   v11.7.2：改善計画の棚卸し中に発見した不要vendorファイルを削除。詳細メモPDFは
+   既にv11.3.0でpdf-lib直接描画に全面移行済みで、html2canvas/jsPDFの実呼び出しは
+   コード中に1つも残っていなかった（grep確認済み）にもかかわらず、index.htmlの
+   <script>タグとservice-worker.jsのASSETSプリキャッシュ一覧に
+   vendor/html2canvas.min.js（約199KB）とvendor/jspdf.umd.min.js（約364KB）が
+   残っており、合計約563KBが毎回無意味にダウンロード・オフラインキャッシュされて
+   いた。両ファイルへの参照をindex.html/service-worker.jsから削除し、vendor/内の
+   実ファイル本体（および混入していたmacOS由来のゴミファイル._html2canvas.min.js/
+   ._jspdf.umd.min.jsも合わせて）削除した。app.js側の変更なし（HTML/SWのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -162,7 +171,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.7.1';
+const APP_VERSION = '11.7.2';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
