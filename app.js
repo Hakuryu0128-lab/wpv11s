@@ -186,6 +186,22 @@
    ②設定ページの.settings-sectionを、印刷・ToDo等の他ページと同じガラス風
    （半透明の白フチ＋柔らかい影＋軽いブラー）に変更し、アプリ全体のデザイン
    言語に揃えた（旧デザインはグレーの実線ボーダー＋ベタ塗り背景で浮いていた）。
+   v11.10.0：v11.9.0のユーザーフィードバックを受けて評価タブをさらに改修。
+   ①評定基準を「全教科共通の1つ(state.settings.evalGradeAB)」から
+   「教科ごと(state.evalRules[subjectId])」に変更。②評定の方式を教科ごとに
+   ABC3段階／5段階（数字1〜5）から選べるようにした。ただし観点別（知識・技能／
+   思考・判断・表現／主体的に学習に取り組む態度）は「観点別はABCでいいけど、
+   最終的な評定は多分5段階のところが多い」というユーザー要望どおり常にABC
+   固定とし、総合評定（表の「評定」列）だけがscale設定に従ってABC/5段階を
+   切り替える（evtGrade3()/evtGrade5()/evtOverallGrade()で分離）。
+   ③評価タブに「CSV書き出し」ボタンを追加。現在表示中の学級・教科の得点・
+   合計・平均・評定・観点別をまとめてCSVに書き出せる（exportEvaluationCsv）。
+   ④名簿に「CSV取り込み」ボタンを追加。csvParse()で簡易CSVパーサーを実装し
+   （ダブルクォート内のカンマ・改行にも対応）、見出し名は「氏名/name」
+   「出席番号/number」等を日本語・英語どちらもゆるく判定するので、この
+   アプリ自身が書き出すCSV（year, school, class_name, number, id, name,
+   qr_text）はもちろん、Excel等で作った簡易CSVもそのまま読み込める。
+   学級名の列があれば複数学級を1つのCSVで一括登録できる。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -193,7 +209,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.9.0';
+const APP_VERSION = '11.10.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -281,6 +297,8 @@ const state = {
   evaluations: {},     // { studentId: { subjectId: { grade, memo, scores:{colId:value} } } }
   evalColumns: {},     // { "schoolId__class__subjectId": [{ id, name, max, vp }] }  評価表の列（項目）
                        // max=満点(未設定なら100扱い) vp=観点('' | 'knowledge'知識・技能 | 'thinking'思考・判断・表現 | 'attitude'主体的に学習に取り組む態度)
+  evalRules: {},       // { subjectId: { scale:'3'|'5', a, b, t5, t4, t3, t2 } }  教科ごとの評定基準
+                       // 観点別は常にABC(a/bしきい値)。総合評定はscaleがABCなら同じa/b、5段階ならt5〜t2を使う。
   settings: {
     teacherName: '',
     schoolName: '',
@@ -301,7 +319,6 @@ const state = {
     lockPin: '',             // 設定中のPIN（数字文字列。''=未設定）
     lockDigits: 4,           // 4 | 6
     lockTimeoutMin: 5,       // 無操作タイムアウト（分）1|3|5|10|30
-    evalGradeAB: { a: 80, b: 50 },  // 評価タブ：評定変換のしきい値（%）。pct>=a→A, pct>=b→B, それ未満→C
   },
   activeView: 'weekly',
   eventsYear: new Date().getFullYear(),
@@ -338,6 +355,7 @@ function save() {
     reception: state.reception,
     evaluations: state.evaluations,
     evalColumns: state.evalColumns,
+    evalRules: state.evalRules,
     settings: state.settings,
   };
   kvSet('weeky_v10', payload).then(() => {
@@ -381,6 +399,7 @@ async function load() {
     state.reception    = data.reception    || [];
     state.evaluations  = data.evaluations  || {};
     state.evalColumns  = data.evalColumns  || {};
+    state.evalRules    = data.evalRules    || {};
     if (data.settings) Object.assign(state.settings, data.settings);
     if (state.settings.viewTransition === 'warp') state.settings.viewTransition = 'pop';  // 廃止した演出のフォールバック
 
@@ -4263,6 +4282,97 @@ function exportRosterCsv() {
   showToast('CSVを書き出しました');
 }
 
+/* ── Roster CSV import（v11.10.0） ──────────────────────────
+   このアプリ自身が書き出すCSV（year, school, class_name, number, id, name,
+   qr_text）をそのまま読み込めるのはもちろん、Excel/Googleスプレッドシート等
+   で作った「学級・出席番号・氏名」だけのシンプルなCSVも読めるよう、見出し名は
+   日本語・英語どちらも許容してゆるく判定する。学級名の列があれば複数学級を
+   1つのCSVにまとめて一括登録でき、学級名の列が無いCSV（氏名・出席番号だけ）
+   の場合は、先に名簿画面で選んでいる学級に登録する。 */
+function csvParse(text) {
+  text = String(text || '').replace(/^﻿/, '');
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\r') { /* skip, \n がセパレータ */ }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => !(r.length === 1 && r[0].trim() === ''));
+}
+const ROSTER_CSV_COLS = {
+  class: ['class_name', '学級', 'クラス', '組', 'class'],
+  number: ['number', '出席番号', '番号', 'no'],
+  name: ['name', '氏名', '名前'],
+  kana: ['kana', 'ふりがな', 'フリガナ', 'よみ'],
+  note: ['note', '備考', 'メモ'],
+};
+function csvColIndex(header, names) {
+  const norm = header.map(h => (h || '').trim().toLowerCase());
+  for (const n of names) {
+    const idx = norm.indexOf(n.toLowerCase());
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+function handleRosterCsvImportFile(e) {
+  const file = e.target.files?.[0];
+  e.target.value = ''; // 同じファイルを連続選択しても change が発火するように
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => importRosterCsv(String(reader.result || ''));
+  reader.onerror = () => showToast('CSVの読み込みに失敗しました');
+  reader.readAsText(file, 'utf-8');
+}
+function importRosterCsv(text) {
+  const rows = csvParse(text);
+  if (rows.length < 2) { showToast('CSVにデータが見つかりません'); return; }
+  const header = rows[0];
+  const idxClass  = csvColIndex(header, ROSTER_CSV_COLS.class);
+  const idxNumber = csvColIndex(header, ROSTER_CSV_COLS.number);
+  const idxName   = csvColIndex(header, ROSTER_CSV_COLS.name);
+  const idxKana   = csvColIndex(header, ROSTER_CSV_COLS.kana);
+  const idxNote   = csvColIndex(header, ROSTER_CSV_COLS.note);
+  if (idxName === -1 || idxNumber === -1) {
+    showToast('CSVに「氏名」「出席番号」の列が見つかりません'); return;
+  }
+  if (idxClass === -1 && !state.rosterClass) {
+    showToast('学級名の列が無いCSVは、先に名簿で学級を選んでから読み込んでください'); return;
+  }
+
+  let count = 0;
+  const classesTouched = new Set();
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const name = (r[idxName] || '').trim();
+    const number = parseInt((r[idxNumber] || '').trim(), 10);
+    if (!name || !isFinite(number)) continue;
+    const className = (idxClass !== -1 ? (r[idxClass] || '').trim() : '') || state.rosterClass;
+    if (!className) continue;
+    setRosterStudent(className, number, name);
+    if (idxKana !== -1 || idxNote !== -1) {
+      const st = activeSchoolStudents().find(s => s.className === className && s.number === number);
+      if (st) {
+        if (idxKana !== -1) st.kana = (r[idxKana] || '').trim();
+        if (idxNote !== -1) st.note = (r[idxNote] || '').trim();
+      }
+    }
+    classesTouched.add(className);
+    count++;
+  }
+  if (!count) { showToast('取り込める行がありませんでした'); return; }
+  save();
+  renderRoster();
+  showToast(`${count}名を取り込みました（${classesTouched.size}学級）`);
+}
+
 /* ── Student edit modal ──────────────────────────────────── */
 let _editingStudentId = null;
 
@@ -4870,28 +4980,49 @@ function renderAttendance() {
    項目（列）ごとに「満点」（未設定なら100点扱い）と「観点」（知識・技能／
    思考・判断・表現／主体的に学習に取り組む態度／なし）を持てるようにし、
    採点済みの列だけを対象に sum(得点)/sum(満点)*100 で％を出す方式にした
-   （列ごとに満点がバラバラでも公平に平均・評定へ反映できる）。
-   評定はA/B/Cの3段階。しきい値（％）は state.settings.evalGradeAB に保存し、
-   表の上のインライン入力でいつでも調整できる。観点別の列（知識・技能／
-   思考・判断・表現／主体的に学習に取り組む態度）は、そのcolKeyで実際に
-   使われている観点タグがある時だけ表示し、誰も使っていなければ増やさない
-   （既存のシンプルな使い方をしている先生の画面を複雑にしないため）。 */
+   （列ごとに満点がバラバラでも公平に平均・評定へ反映できる）。観点別の列は、
+   そのcolKeyで実際に使われている観点タグがある時だけ表示し、誰も使って
+   いなければ増やさない（既存のシンプルな使い方をしている先生の画面を
+   複雑にしないため）。
+   v11.10.0：評定基準を「全教科共通の1つ」から「教科ごと」に変更
+   （state.evalRules[subjectId]）。また評定を教科ごとにABC3段階／5段階
+   （数字1〜5）のどちらかを選べるようにした。ただし観点別（知識・技能等）は
+   常にABC固定（ユーザー要望：「各観点別はABCでいいけど、最終的な評定は
+   多分5段階のところが多い」）。評価データのCSV書き出しボタンも追加。 */
 const EVT_VP_LABELS = { knowledge: '知識・技能', thinking: '思考・判断・表現', attitude: '主体的に学習に取り組む態度' };
 const EVT_VP_ORDER = ['knowledge', 'thinking', 'attitude'];
 
 function evtColMax(col) { const v = Number(col?.max); return (isFinite(v) && v > 0) ? v : 100; }
 
-function evtPctToGrade(pct) {
+/* 教科ごとの評定基準。未設定の教科はこの既定値で動く。 */
+function evtDefaultRule() { return { scale: '3', a: 80, b: 50, t5: 90, t4: 80, t3: 60, t2: 40 }; }
+function evtRuleFor(subjectId) { return Object.assign(evtDefaultRule(), state.evalRules[subjectId] || {}); }
+
+/* 観点別（常にABC）と、総合評定がABC方式の時に使う3段階変換。 */
+function evtGrade3(pct, rule) {
   if (pct == null) return '';
-  const th = state.settings.evalGradeAB || { a: 80, b: 50 };
-  const a = Number(th.a) || 80, b = Number(th.b) || 50;
+  const a = Number(rule.a) || 80, b = Number(rule.b) || 50;
   if (pct >= a) return 'A';
   if (pct >= b) return 'B';
   return 'C';
 }
+/* 総合評定が5段階方式の時に使う変換（数字1〜5）。 */
+function evtGrade5(pct, rule) {
+  if (pct == null) return '';
+  const t5 = Number(rule.t5) || 90, t4 = Number(rule.t4) || 80, t3 = Number(rule.t3) || 60, t2 = Number(rule.t2) || 40;
+  if (pct >= t5) return '5';
+  if (pct >= t4) return '4';
+  if (pct >= t3) return '3';
+  if (pct >= t2) return '2';
+  return '1';
+}
+/* 総合評定（「評定」列）はルールのscaleに従ってABC/5段階を切り替える。 */
+function evtOverallGrade(pct, rule) { return rule.scale === '5' ? evtGrade5(pct, rule) : evtGrade3(pct, rule); }
 
 /* 生徒1人・教科1つ分の集計。columns（対象を絞りたい時は観点でフィルタ済みの配列）を渡す。
-   未入力の列は分母・分子どちらにも含めない（部分入力でも公平な％になるように）。 */
+   未入力の列は分母・分子どちらにも含めない（部分入力でも公平な％になるように）。
+   評定への変換はここでは行わず、呼び出し側が用途（総合／観点別）に応じて
+   evtOverallGrade()かevtGrade3()を使う。 */
 function evtAggregate(sid, subjectId, columns) {
   let sum = 0, max = 0, any = false;
   columns.forEach(c => {
@@ -4902,18 +5033,19 @@ function evtAggregate(sid, subjectId, columns) {
     sum += v; max += evtColMax(c); any = true;
   });
   const pct = any ? (sum / max * 100) : null;
-  return { sum, max, pct, any, grade: evtPctToGrade(pct) };
+  return { sum, max, pct, any };
 }
 
-function evtGradeBadge(agg) {
-  if (!agg.any) return `<span class="evt-grade-empty">—</span>`;
-  return `<span class="evt-grade-badge evt-grade-${agg.grade}">${agg.grade}</span>`;
+function evtGradeBadge(grade, any) {
+  if (!any || !grade) return `<span class="evt-grade-empty">—</span>`;
+  const cls = /^[1-5]$/.test(grade) ? `evt-grade-n${grade}` : `evt-grade-${grade}`;
+  return `<span class="evt-grade-badge ${cls}">${grade}</span>`;
 }
 
 /* 1行（1生徒）ぶんの合計・平均・評定・観点別セルを再計算してDOMだけ更新する。
    得点入力のたびに表全体をrenderEvaluation()し直すとinput要素が作り直されて
    フォーカスが飛ぶため、行内の集計セルだけをピンポイントで書き換える。 */
-function evtUpdateRowSummary(tr, sid, subjectId, columns, usedVp) {
+function evtUpdateRowSummary(tr, sid, subjectId, columns, usedVp, rule) {
   if (!tr) return;
   const overall = evtAggregate(sid, subjectId, columns);
   const sumEl = tr.querySelector('.evt-sum-val');
@@ -4921,13 +5053,61 @@ function evtUpdateRowSummary(tr, sid, subjectId, columns, usedVp) {
   const pctEl = tr.querySelector('.evt-pct-val');
   if (pctEl) pctEl.textContent = overall.any ? `${Math.round(overall.pct)}%` : '—';
   const gradeEl = tr.querySelector('.evt-grade-cell');
-  if (gradeEl) gradeEl.innerHTML = evtGradeBadge(overall);
+  if (gradeEl) gradeEl.innerHTML = evtGradeBadge(evtOverallGrade(overall.pct, rule), overall.any);
   usedVp.forEach(vp => {
     const vpCols = columns.filter(c => c.vp === vp);
     const vpAgg = evtAggregate(sid, subjectId, vpCols);
     const cell = tr.querySelector(`.evt-vp-cell[data-vp="${vp}"]`);
-    if (cell) cell.innerHTML = vpAgg.any ? `${Math.round(vpAgg.pct)}% ${evtGradeBadge(vpAgg)}` : '—';
+    if (cell) cell.innerHTML = vpAgg.any ? `${Math.round(vpAgg.pct)}% ${evtGradeBadge(evtGrade3(vpAgg.pct, rule), vpAgg.any)}` : '—';
   });
+}
+
+/* 現在表示中の学級・教科の評価表（得点・合計・平均・評定・観点別）をCSVに書き出す。 */
+function exportEvaluationCsv() {
+  const subjSel = document.getElementById('evalSubjectSelect');
+  const subjectId = subjSel?.value || state.settings.subjects[0]?.id || '';
+  const subject = state.settings.subjects.find(s => s.id === subjectId);
+  if (!state.rosterClass) { showToast('先に学級を選んでください'); return; }
+  const students = studentsInClass(state.rosterClass);
+  if (!students.length) { showToast('この学級に生徒がいません'); return; }
+
+  const colKey = `${state.activeSchoolId}__${state.rosterClass}__${subjectId}`;
+  const columns = state.evalColumns[colKey] || [];
+  if (!columns.length) { showToast('項目がまだありません'); return; }
+  const usedVp = EVT_VP_ORDER.filter(vp => columns.some(c => c.vp === vp));
+  const rule = evtRuleFor(subjectId);
+
+  const header = [
+    '出席番号', '氏名',
+    ...columns.map(c => c.name),
+    '合計', '満点', '平均(%)', '評定',
+    ...usedVp.flatMap(vp => [`${EVT_VP_LABELS[vp]}(%)`, `${EVT_VP_LABELS[vp]}評定`]),
+  ];
+  const rows = students.map(st => {
+    const overall = evtAggregate(st.id, subjectId, columns);
+    const row = [st.number ?? '', st.name || ''];
+    columns.forEach(c => row.push(state.evaluations[st.id]?.[subjectId]?.scores?.[c.id] ?? ''));
+    row.push(
+      overall.any ? overall.sum : '',
+      overall.any ? overall.max : '',
+      overall.any ? Math.round(overall.pct) : '',
+      overall.any ? evtOverallGrade(overall.pct, rule) : ''
+    );
+    usedVp.forEach(vp => {
+      const vpAgg = evtAggregate(st.id, subjectId, columns.filter(c => c.vp === vp));
+      row.push(vpAgg.any ? Math.round(vpAgg.pct) : '', vpAgg.any ? evtGrade3(vpAgg.pct, rule) : '');
+    });
+    return row;
+  });
+  const csv = '﻿' + [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${state.rosterClass}_${subject?.name || '評価'}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSVを書き出しました');
 }
 
 function renderEvaluation() {
@@ -4958,7 +5138,7 @@ function renderEvaluation() {
 
   const scoreOf = (sid, colId) => state.evaluations[sid]?.[subjectId]?.scores?.[colId] ?? '';
   const usedVp = EVT_VP_ORDER.filter(vp => columns.some(c => c.vp === vp));
-  const gradeAB = state.settings.evalGradeAB || { a: 80, b: 50 };
+  const rule = evtRuleFor(subjectId);
 
   const head = `<tr>
     <th class="evt-name evt-corner">氏名</th>
@@ -4990,20 +5170,34 @@ function renderEvaluation() {
     ${columns.length ? `
       <td class="evt-summary-cell"><span class="evt-sum-val">${overall.any ? `${overall.sum}／${overall.max}` : '—'}</span></td>
       <td class="evt-summary-cell"><span class="evt-pct-val">${overall.any ? `${Math.round(overall.pct)}%` : '—'}</span></td>
-      <td class="evt-summary-cell evt-grade-cell">${evtGradeBadge(overall)}</td>
+      <td class="evt-summary-cell evt-grade-cell">${evtGradeBadge(evtOverallGrade(overall.pct, rule), overall.any)}</td>
       ${usedVp.map(vp => {
         const vpAgg = evtAggregate(st.id, subjectId, columns.filter(c => c.vp === vp));
-        return `<td class="evt-summary-cell evt-vp-cell" data-vp="${vp}">${vpAgg.any ? `${Math.round(vpAgg.pct)}% ${evtGradeBadge(vpAgg)}` : '—'}</td>`;
+        return `<td class="evt-summary-cell evt-vp-cell" data-vp="${vp}">${vpAgg.any ? `${Math.round(vpAgg.pct)}% ${evtGradeBadge(evtGrade3(vpAgg.pct, rule), vpAgg.any)}` : '—'}</td>`;
       }).join('')}
     ` : ''}
   </tr>`;
   }).join('');
 
   container.innerHTML = `
-    <p class="settings-hint">点数を入力する表です。右上の「＋ 項目」でテスト等の列を増やせます（学級・教科ごとに保存）。項目名の下で満点・観点（知識・技能など）を設定すると、右側に合計・平均・評定（観点別も）が自動で出ます。</p>
-    <div class="evt-grade-rule">
-      評定基準：A ≥ <input type="number" id="evalGradeA" min="1" max="100" value="${Number(gradeAB.a) || 80}">%
-      B ≥ <input type="number" id="evalGradeB" min="1" max="100" value="${Number(gradeAB.b) || 50}">%　（未満はC）
+    <p class="settings-hint">点数を入力する表です。右上の「＋ 項目」でテスト等の列を増やせます（学級・教科ごとに保存）。項目名の下で満点・観点（知識・技能など）を設定すると、右側に合計・平均・評定（観点別も）が自動で出ます。評定の基準・方式は教科ごとに設定できます。</p>
+    <div class="evt-rule-panel">
+      <div class="evt-rule-row">
+        <span class="evt-rule-label">観点別の基準：</span>
+        A ≥ <input type="number" id="evalRuleA" min="1" max="100" value="${rule.a}">%
+        B ≥ <input type="number" id="evalRuleB" min="1" max="100" value="${rule.b}">%（未満はC）
+      </div>
+      <div class="evt-rule-row">
+        <span class="evt-rule-label">総合評定：</span>
+        <label class="evt-rule-radio"><input type="radio" name="evalRuleScale" value="3" ${rule.scale !== '5' ? 'checked' : ''}> ABC</label>
+        <label class="evt-rule-radio"><input type="radio" name="evalRuleScale" value="5" ${rule.scale === '5' ? 'checked' : ''}> 5段階</label>
+        <span class="evt-rule-five${rule.scale === '5' ? '' : ' hidden'}" id="evalRuleFiveWrap">
+          5 ≥ <input type="number" id="evalRule5" min="1" max="100" value="${rule.t5}">%
+          4 ≥ <input type="number" id="evalRule4" min="1" max="100" value="${rule.t4}">%
+          3 ≥ <input type="number" id="evalRule3" min="1" max="100" value="${rule.t3}">%
+          2 ≥ <input type="number" id="evalRule2" min="1" max="100" value="${rule.t2}">%（未満は1）
+        </span>
+      </div>
     </div>
     <div class="evt-wrap">
       <table class="evt-table">
@@ -5012,14 +5206,20 @@ function renderEvaluation() {
       </table>
     </div>`;
 
-  // 評定基準の変更
-  const gradeAInput = container.querySelector('#evalGradeA');
-  const gradeBInput = container.querySelector('#evalGradeB');
-  [gradeAInput, gradeBInput].forEach(inp => inp?.addEventListener('change', () => {
-    const a = Number(gradeAInput.value) || 80, b = Number(gradeBInput.value) || 50;
-    state.settings.evalGradeAB = { a, b };
+  // 評定基準の変更（教科ごとに保存）
+  const saveRule = patch => {
+    state.evalRules[subjectId] = Object.assign({}, evtRuleFor(subjectId), patch);
     save(); renderEvaluation();
+  };
+  container.querySelector('#evalRuleA')?.addEventListener('change', e => saveRule({ a: Number(e.target.value) || 80 }));
+  container.querySelector('#evalRuleB')?.addEventListener('change', e => saveRule({ b: Number(e.target.value) || 50 }));
+  container.querySelectorAll('input[name="evalRuleScale"]').forEach(r => r.addEventListener('change', e => {
+    if (e.target.checked) saveRule({ scale: e.target.value });
   }));
+  container.querySelector('#evalRule5')?.addEventListener('change', e => saveRule({ t5: Number(e.target.value) || 90 }));
+  container.querySelector('#evalRule4')?.addEventListener('change', e => saveRule({ t4: Number(e.target.value) || 80 }));
+  container.querySelector('#evalRule3')?.addEventListener('change', e => saveRule({ t3: Number(e.target.value) || 60 }));
+  container.querySelector('#evalRule2')?.addEventListener('change', e => saveRule({ t2: Number(e.target.value) || 40 }));
   // 項目（列）を追加
   container.querySelector('#evtAddCol')?.addEventListener('click', async () => {
     const name = await customPrompt('項目名（例：1学期中間 / 小テスト①）', `項目${columns.length + 1}`);
@@ -5063,7 +5263,7 @@ function renderEvaluation() {
     if (!state.evaluations[sid][subjectId].scores) state.evaluations[sid][subjectId].scores = {};
     state.evaluations[sid][subjectId].scores[colId] = inp.value;
     save();
-    evtUpdateRowSummary(inp.closest('tr'), sid, subjectId, columns, usedVp);
+    evtUpdateRowSummary(inp.closest('tr'), sid, subjectId, columns, usedVp, rule);
   }));
 }
 
@@ -6853,7 +7053,7 @@ function collectState() {
     lunch: state.lunch,
     schools: state.schools, activeSchoolId: state.activeSchoolId,
     students: state.students, attendance: state.attendance, evaluations: state.evaluations,
-    evalColumns: state.evalColumns,
+    evalColumns: state.evalColumns, evalRules: state.evalRules,
     reception: state.reception,
     photos: state.photos, settings: state.settings,
   };
@@ -6905,6 +7105,7 @@ function importJson(file) {
       if (data.reception)   state.reception   = data.reception;
       if (data.evaluations) state.evaluations = data.evaluations;
       if (data.evalColumns) state.evalColumns = data.evalColumns;
+      if (data.evalRules) state.evalRules = data.evalRules;
       if (data.photos)    state.photos    = data.photos;
       if (data.settings)  Object.assign(state.settings, data.settings);
 
@@ -7843,7 +8044,10 @@ function bindEvents() {
   });
   q('rmPasteBtn')?.addEventListener('click', openPasteModal);
   q('rmCsvBtn')?.addEventListener('click', exportRosterCsv);
+  q('rmCsvImportBtn')?.addEventListener('click', () => q('rmCsvImportFile')?.click());
+  q('rmCsvImportFile')?.addEventListener('change', handleRosterCsvImportFile);
   q('rmDetailBtn')?.addEventListener('click', () => openStudentModal(null));
+  q('evalCsvBtn')?.addEventListener('click', exportEvaluationCsv);
 
   /* ── Bulk paste modal ── */
   q('pasteModalClose')?.addEventListener('click', closePasteModal);

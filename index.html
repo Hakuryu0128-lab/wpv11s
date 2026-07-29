@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.9.0" />
+  <link rel="stylesheet" href="styles.css?v=11.10.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -512,6 +512,8 @@
                 <span class="rm-col-title" id="rmRosterTitle">名簿</span>
                 <div class="rm-roster-actions">
                   <button class="btn-secondary btn-sm" id="rmPasteBtn">名簿を貼り付け</button>
+                  <button class="btn-secondary btn-sm" id="rmCsvImportBtn">CSV取り込み</button>
+                  <input type="file" id="rmCsvImportFile" accept=".csv,text/csv" hidden />
                   <button class="btn-secondary btn-sm" id="rmCsvBtn">CSV書き出し</button>
                   <button class="btn-ghost btn-sm" id="rmDetailBtn">詳細追加</button>
                 </div>
@@ -530,6 +532,7 @@
                 <select class="filter-select" id="evalSchoolSelect" aria-label="学校"></select>
                 <select class="filter-select" id="evalClassSelect" aria-label="学級"></select>
                 <select class="filter-select" id="evalSubjectSelect" aria-label="教科"></select>
+                <button class="btn-secondary btn-sm" id="evalCsvBtn">CSV書き出し</button>
               </div>
             </div>
             <div id="evaluationContent"></div>
@@ -1318,6 +1321,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.9.0"></script>
+<script src="app.js?v=11.10.0"></script>
 </body>
 </html>

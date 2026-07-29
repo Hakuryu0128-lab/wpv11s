@@ -2616,14 +2616,27 @@ img { max-width: 100%; display: block; }
 .evt-grade-A { background: #16a34a; }
 .evt-grade-B { background: #2563eb; }
 .evt-grade-C { background: #d97706; }
+/* 5段階（数字）評定のバッジ配色。5→1で緑→青→オレンジ→赤へ変化させ、
+   ABCのA(緑)/C(オレンジ)と印象がずれないようにした。 */
+.evt-grade-n5 { background: #16a34a; }
+.evt-grade-n4 { background: #65a30d; }
+.evt-grade-n3 { background: #2563eb; }
+.evt-grade-n2 { background: #d97706; }
+.evt-grade-n1 { background: #dc2626; }
 .evt-grade-empty { color: var(--gray-300); }
 
-/* 評価：評定基準（A/Bのしきい値％）のインライン設定行（v11.9.0） */
-.evt-grade-rule {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+/* 評価：評定基準のインライン設定パネル（v11.10.0） ── 教科ごとに保存される。
+   観点別は常にABC（A/Bのしきい値%）。総合評定はABC/5段階をラジオで切替でき、
+   5段階選択時だけ4つのしきい値入力（5≧/4≧/3≧/2≧%）を表示する。 */
+.evt-rule-panel {
+  display: flex; flex-direction: column; gap: 6px;
   font-size: 13px; color: var(--gray-600); margin: -4px 0 12px;
 }
-.evt-grade-rule input {
+.evt-rule-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.evt-rule-label { font-weight: 700; color: var(--gray-700); }
+.evt-rule-radio { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; cursor: pointer; }
+.evt-rule-five { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.evt-rule-panel input[type="number"] {
   width: 52px; border: 1px solid var(--border); border-radius: 8px;
   padding: 4px 6px; font-size: 13px; text-align: center; background: var(--bg);
 }
