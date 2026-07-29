@@ -146,6 +146,15 @@
    学級カラーを反映するため他ページのvar(--brand)ではなくvar(--student)を
    使用（.roster-manager等、既存の生徒系フルブリードビューと同じ配色ルール
    を踏襲）。app.js側の変更なし（CSSのみ）。
+   v11.7.1：上記v11.7.0の不具合修正。進度・出席・評価の表（.progress-compare／
+   .att-grid／.abs-table／.eval-list）の中のセルにはもともと背景色が一切設定
+   されておらず透明だったため、v11.7.0でページ全体にグラデーション背景を敷いた
+   ところ、そのグラデーションが表のセル一つ一つに透けて見えてしまい、セルごとに
+   色ムラが出て違和感があるとの指摘を受けて発見。セル一つ一つに個別パッチを
+   当てるのではなく、表全体を囲むラッパー（.progress-compare-wrap／
+   .att-grid-wrap／.abs-wrap／.eval-list）に background: var(--bg) を一括で
+   付与し、表全体を不透明な1枚の板として下のグラデーションを遮断する方式にした
+   （抜け漏れが起きにくい）。app.js側の変更なし（CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -153,7 +162,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.7.0';
+const APP_VERSION = '11.7.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

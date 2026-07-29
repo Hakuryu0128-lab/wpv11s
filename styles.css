@@ -2112,6 +2112,7 @@ img { max-width: 100%; display: block; }
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  background: var(--bg);
 }
 .att-head, .att-row {
   display: grid;
@@ -2166,7 +2167,10 @@ img { max-width: 100%; display: block; }
 
 /* Progress cross-class comparison */
 .progress-compare-info { font-size: 14px; font-weight: 700; color: var(--gray-700); margin: 6px 0 12px; }
-.progress-compare-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+/* v11.7.1：背景に薄いグラデーションを敷いたページ(進度/出席/評価)では、
+   表の中のセルに背景色が付いていないと下のグラデーションが透けて見えて
+   しまい違和感が出るため、表のラッパーに不透明な背景を敷いて遮断する。 */
+.progress-compare-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
 /* width:max-content + min-width:100% → 学級が少なければ幅いっぱい、
    多ければ列幅を保って横スクロール（潰れない） */
 .progress-compare { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -2233,7 +2237,7 @@ img { max-width: 100%; display: block; }
 .att-start-btn { margin-left: auto; }
 
 /* 教科別・何回目ベースの出欠マトリクス */
-.abs-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.abs-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
 .abs-table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 13px; }
 .abs-table th, .abs-table td { border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .abs-table th { position: sticky; top: 0; z-index: 1; background: var(--bg-subtle); padding: 6px 4px; font-weight: 700; color: var(--gray-700); }
@@ -2537,7 +2541,7 @@ img { max-width: 100%; display: block; }
 }
 
 /* Evaluation list */
-.eval-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.eval-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg); }
 .eval-row {
   display: grid;
   grid-template-columns: 200px 90px 1fr;
