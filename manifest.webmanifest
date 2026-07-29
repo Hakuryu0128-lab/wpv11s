@@ -13,5 +13,35 @@
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "週案を開く",
+      "short_name": "週案",
+      "description": "今週の授業予定を開きます",
+      "url": "./index.html?view=weekly",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "出席",
+      "short_name": "出席",
+      "description": "出席の記録・QR受付を開きます",
+      "url": "./index.html?view=attendance",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "ToDoを追加",
+      "short_name": "ToDo",
+      "description": "ToDoを開いてすぐに追加できます",
+      "url": "./index.html?view=todo",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "印刷・PDF",
+      "short_name": "印刷",
+      "description": "週案表・詳細メモをPDFで書き出します",
+      "url": "./index.html?view=print",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }

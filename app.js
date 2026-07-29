@@ -164,6 +164,15 @@
    いた。両ファイルへの参照をindex.html/service-worker.jsから削除し、vendor/内の
    実ファイル本体（および混入していたmacOS由来のゴミファイル._html2canvas.min.js/
    ._jspdf.umd.min.jsも合わせて）削除した。app.js側の変更なし（HTML/SWのみ）。
+   v11.8.0：manifest.webmanifestにshortcuts（ホーム画面アイコン長押しのクイック
+   アクション）を追加。週案／出席／ToDo／印刷・PDFの4つを用意し、それぞれ
+   ./index.html?view=xxx を指す。この?view=パラメータを起動時に読み取って
+   該当ビューへ直接遷移する仕組みが従来なかったため、新規に
+   applyShortcutView()を実装し、startApp()内のbindEvents()直後（initLock()の
+   前）で呼び出すようにした。既知ビューID一覧との照合のみで遷移させ、未知の
+   値や省略時は何もしない（通常起動時の挙動に影響なし）。遷移後は
+   history.replaceState()でURLから?view=を除去し、再読み込みや共有時に
+   意図せず固定ビューになるのを防いでいる。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -171,7 +180,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.7.2';
+const APP_VERSION = '11.8.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -7451,6 +7460,18 @@ function _tutReposition(){
   }
 }
 
+// v11.8.0: manifest.webmanifestのshortcutsから ?view=xxx で起動された場合に
+// 該当ビューへ直接遷移する。ロック画面が有効な場合はPIN解除後に反映されるよう、
+// activeView自体をここで書き換えてからswitchViewを呼ぶ（initLockは後段で実行される）。
+function applyShortcutView() {
+  const KNOWN_VIEWS = ['weekly', 'todo', 'progress', 'events', 'photos', 'notes', 'attendance', 'roster', 'evaluation', 'import', 'print', 'settings'];
+  const requested = new URLSearchParams(location.search).get('view');
+  if (!requested || !KNOWN_VIEWS.includes(requested)) return;
+  switchView(requested);
+  // URLに ?view= を残さない（再読み込みや共有時に意図せず固定されるのを防ぐ）
+  history.replaceState(null, '', location.pathname + location.hash);
+}
+
 async function startApp() {
   document.getElementById('activationGate')?.setAttribute('hidden', '');
 
@@ -7487,6 +7508,10 @@ async function startApp() {
   }, 60_000);
 
   bindEvents();
+
+  // v11.8.0: manifest.webmanifestのshortcuts（ホーム画面アイコン長押しメニュー）から
+  // ?view=xxx 付きで起動された場合、該当ビューへ直接切り替える。
+  applyShortcutView();
 
   // 画面ロック（PIN）初期化：起動時ロック・無操作タイマー・設定UI
   initLock();
