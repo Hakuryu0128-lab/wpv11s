@@ -202,6 +202,18 @@
    アプリ自身が書き出すCSV（year, school, class_name, number, id, name,
    qr_text）はもちろん、Excel等で作った簡易CSVもそのまま読み込める。
    学級名の列があれば複数学級を1つのCSVで一括登録できる。
+   v11.11.0：①設定の「学級」タブを削除。中身は名簿に登録済みの学級名と
+   人数を表示するだけの読み取り専用リスト（class-chip--readonly、追加・
+   削除・名前変更は一切不可）で、学級の実際の管理は既に名簿ページの
+   学級カラム（追加・削除フォーム付き）で完結しており、ユーザー指摘の
+   とおり完全な重複＋劣化コピーだった。ナビ項目・セクション・
+   renderClassesList()・呼び出し元・未使用だった.class-chip系CSSを
+   まとめて削除。②印刷ページのプレビュー枠が下側で窮屈に見えるとの指摘を
+   受け、.print-preview-frameのmax-heightを640px→760pxに拡大。加えて
+   .print-studioの上下パディング(22px→16px)とgap(18px→14px)を詰めて
+   ツールバー・フッター側の余白を減らし、プレビュー枠(flex:1)が使える
+   縦方向のスペース自体を増やした（見た目のバランスが大きく変わらない
+   範囲で、プレビューの実際の表示サイズを底上げする狙い）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -209,7 +221,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.10.0';
+const APP_VERSION = '11.11.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -5696,7 +5708,6 @@ function renderSettings() {
   if (s('lessonDuration')) s('lessonDuration').value  = state.settings.lessonDuration || 50;
 
   renderSubjectColorGrid();
-  renderClassesList();
   renderAppearanceSeg();
   renderThemeGrid();
   renderTransitionGrid();
@@ -5804,24 +5815,6 @@ function addSubject(name, color) {
   save();
   renderSubjectColorGrid();
   return true;
-}
-
-function renderClassesList() {
-  const list = document.getElementById('classesList');
-  if (!list) return;
-  list.innerHTML = '';
-  const classes = getClassList();
-  if (!classes.length) {
-    list.innerHTML = '<p class="placeholder-text">まだ学級がありません。名簿で生徒を登録してください。</p>';
-    return;
-  }
-  classes.forEach(cls => {
-    const count = studentsInClass(cls).length;
-    const chip = document.createElement('span');
-    chip.className = 'class-chip class-chip--readonly';
-    chip.innerHTML = `${escHtml(cls)}${count ? `<span class="class-chip-count">${count}</span>` : ''}`;
-    list.appendChild(chip);
-  });
 }
 
 function saveSettings() {

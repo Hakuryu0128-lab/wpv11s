@@ -2783,10 +2783,10 @@ img { max-width: 100%; display: block; }
 .print-studio {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   height: 100%;
   overflow: hidden;
-  padding: 22px 26px;
+  padding: 16px 26px;
   background:
     radial-gradient(900px 360px at 0% 0%, color-mix(in srgb, var(--brand) 12%, transparent), transparent),
     radial-gradient(820px 420px at 100% 100%, color-mix(in srgb, var(--brand-hover) 10%, transparent), transparent),
@@ -2838,7 +2838,7 @@ img { max-width: 100%; display: block; }
   position: relative;
   flex: 1;
   min-height: 0;
-  max-height: 640px;
+  max-height: 760px;
   width: 100%;
   max-width: 760px;
   align-self: center;
@@ -4334,41 +4334,6 @@ img { max-width: 100%; display: block; }
   min-width: 90px;
   text-align: center;
 }
-
-/* ── Classes list in settings ── */
-.classes-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.class-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: var(--brand-light);
-  color: var(--brand);
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 600;
-}
-.class-chip-count {
-  background: var(--brand);
-  color: #fff;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 1px 7px;
-}
-.class-chip-remove {
-  cursor: pointer;
-  opacity: 0.6;
-  font-size: 14px;
-  line-height: 1;
-  transition: opacity var(--fast);
-}
-.class-chip-remove:hover { opacity: 1; }
 
 /* ── Settings row with inline buttons ── */
 .settings-row .btn-secondary + .btn-ghost { margin-left: 8px; }
