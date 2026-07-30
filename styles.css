@@ -4027,7 +4027,15 @@ img { max-width: 100%; display: block; }
    十分な高さがある通常時は一切変えない。pointer:coarse の min-height を上書き
    するため、必ずこのブロックより後（下流）に置くこと。 */
 @media (max-height: 860px) {
-  .sidebar { overflow-y: auto; overflow-x: hidden; }   /* 収まらない時だけスクロール */
+  /* 収まらない時だけスクロール。ただし濃紺の背景にブラウザ既定の
+     スクロールバーが乗ると見た目が悪いため（ユーザー報告：PC版Chromeで
+     ダサく見える）、スクロール自体は残しつつバーの表示だけ消す。 */
+  .sidebar {
+    overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: none;           /* Firefox */
+    -ms-overflow-style: none;        /* legacy Edge */
+  }
+  .sidebar::-webkit-scrollbar { display: none; }   /* Chrome/Safari/Edge(Chromium) */
   .sb-mark { height: 40px; margin-bottom: 2px; }
   .sb-mark img { width: 28px; height: 28px; }
   .sb-section-label { padding: 4px 0 1px; }

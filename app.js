@@ -297,6 +297,14 @@
    ほぼ常に覆っているコンテナで、背景色は読み込み中の一瞬しか見えない
    ものなので、ガラス化の対象外とした（画像自体を半透明にする理由が
    無いため）。app.js側の変更なし（CSSのみ）。
+   v11.15.1：バグ修正。PC版Chromeでウィンドウの縦が短い（860px以下）とき、
+   @media (max-height: 860px)の「サイドバーが収まらなければスクロール」
+   フォールバック（.sidebar { overflow-y: auto }）が働き、ブラウザ既定の
+   スクロールバーが濃紺のサイドバー上に表示されてしまう不具合を修正
+   （ユーザー報告：見た目がダサい）。スクロール自体（内容が本当に収まり
+   切らない極端なケースへの保険）は残しつつ、scrollbar-width: none／
+   ::-webkit-scrollbar { display: none }でバーの見た目だけ消した。
+   app.js側の変更なし（CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -304,7 +312,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.15.0';
+const APP_VERSION = '11.15.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
