@@ -305,6 +305,17 @@
    切らない極端なケースへの保険）は残しつつ、scrollbar-width: none／
    ::-webkit-scrollbar { display: none }でバーの見た目だけ消した。
    app.js側の変更なし（CSSのみ）。
+   v11.16.0：天気の「現在地を使用」で取得した緯度経度が、実際の地名では
+   なく文字通り「現在地」というラベルのまま表示されていた不具合を修正
+   （ユーザー指摘：現在地がどこかも表示してほしい）。新設のreverseGeocode()
+   でBigDataCloudの無料クライアント向け逆ジオコーディングAPI（キー不要）を
+   呼び、市区町村＋都道府県（例：「宇土市（熊本県）」）に変換してから
+   weatherNameへ保存するようにした（天気モーダル・設定/オンボーディングの
+   位置設定ステップの両方で使用）。あわせてヘッダーの天気ボタン
+   （アイコン＋気温）にも新しく地名を小さく併記する
+   #weatherLocInlineを追加し、今どこの天気を見ているか一目でわかるように
+   した（画面が狭い480px未満では気温と同じく非表示にし、代わりにボタンの
+   title属性でホバー確認できる）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -312,7 +323,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.15.1';
+const APP_VERSION = '11.16.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -1281,6 +1292,27 @@ async function fetchWeather(lat, lon) {
   return res.json();
 }
 
+/* 「現在地を使用」で取得した緯度経度を、実際の地名（市区町村＋都道府県）に
+   変換する逆ジオコーディング。以前はweatherNameに文字通り「現在地」という
+   ラベルを入れているだけで、どこの天気を見ているのか分からなかった
+   （ユーザー指摘）。BigDataCloudの無料クライアント向け逆ジオコーディングAPI
+   （APIキー不要・CORS対応）を使用。取得に失敗した場合は従来どおり「現在地」
+   にフォールバックする。 */
+async function reverseGeocode(lat, lon) {
+  try {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=ja`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('reverse geocode failed');
+    const data = await res.json();
+    const place = data.city || data.locality || '';
+    const pref = data.principalSubdivision || '';
+    if (place && pref && place !== pref) return `${place}（${pref}）`;
+    return place || pref || data.countryName || '現在地';
+  } catch (e) {
+    return '現在地';
+  }
+}
+
 async function loadWeather() {
   const now = Date.now();
   if (_weatherCache && now - _weatherCacheTime < 30 * 60 * 1000) {
@@ -1316,11 +1348,21 @@ function renderWeatherWidget(data) {
 
   const iconEl = document.getElementById('weatherIcon');
   const tempEl = document.getElementById('weatherTemp');
+  const locEl = document.getElementById('weatherLocInline');
+  const btnEl = document.getElementById('weatherBtn');
 
   if (iconEl) iconEl.textContent = icon;
   if (tempEl) tempEl.textContent = `${temp}°`;
   // Store desc for modal tooltip
   if (tempEl) tempEl.title = desc;
+
+  // どこの天気を見ているか一目でわかるよう、ヘッダーの天気ボタンにも
+  // 地名を小さく表示する（ユーザー要望）。狭い画面では.weather-tempと
+  // 同じくCSSで非表示にし、代わりにボタン全体のtitle（ホバー時ツール
+  // チップ）で確認できるようにする。
+  const locName = state.settings.weatherName || '東京';
+  if (locEl) locEl.textContent = locName;
+  if (btnEl) btnEl.title = `${locName}　${desc}　${temp}°`;
 
   // Store for modal
   window._weatherData = data;
@@ -1385,12 +1427,18 @@ async function openWeatherModal() {
     navigator.geolocation.getCurrentPosition(async pos => {
       state.settings.weatherLat = pos.coords.latitude;
       state.settings.weatherLon = pos.coords.longitude;
-      state.settings.weatherName = '現在地';
+      state.settings.weatherName = '現在地を確認中…';
       _weatherCache = null;
       save();
-      await loadWeather();
+      const [name] = await Promise.all([
+        reverseGeocode(pos.coords.latitude, pos.coords.longitude),
+        loadWeather(),
+      ]);
+      state.settings.weatherName = name;
+      save();
+      renderWeatherWidget(window._weatherData || _weatherCache);
       modal.setAttribute('hidden', '');
-      showToast('現在地の天気に切り替えました');
+      showToast(`${name} の天気に切り替えました`);
     }, err => {
       const msg = err.code === 1 ? '位置情報の利用が許可されていません'
                 : err.code === 3 ? '位置情報の取得がタイムアウトしました'
@@ -7610,10 +7658,11 @@ function buildObSteps() {
             return;
           }
           status.textContent = '現在地を取得中…';
-          navigator.geolocation.getCurrentPosition(pos => {
+          navigator.geolocation.getCurrentPosition(async pos => {
             state.settings.weatherLat = pos.coords.latitude;
             state.settings.weatherLon = pos.coords.longitude;
-            state.settings.weatherName = '現在地';
+            status.textContent = '現在地を確認中…';
+            state.settings.weatherName = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
             _weatherCache = null;
             showStatus();
           }, () => { status.textContent = '現在地の取得に失敗しました。都市名で設定してください'; },

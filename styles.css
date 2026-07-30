@@ -532,6 +532,19 @@ img { max-width: 100%; display: block; }
 .weather-btn:hover { background: var(--gray-200); }
 .weather-icon { font-size: 16px; line-height: 1; }
 .weather-temp { font-weight: 600; font-size: 12px; }
+/* 今どこの天気を表示しているか一目でわかるよう追加（ユーザー要望）。
+   長い地名（例：〇〇市（〇〇県））でヘッダーが伸びすぎないようmax-widthで
+   省略し、.weather-tempと同じ狭幅ブレークポイントで非表示にする
+   （その場合でもボタン自体のtitle属性でホバー確認は可能）。 */
+.weather-loc-inline {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-500);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .context-toggle-btn {
   width: 36px; height: 36px;
@@ -3989,6 +4002,7 @@ img { max-width: 100%; display: block; }
   .week-nav-btn { width: 32px; height: 32px; }
   .today-btn { display: none; }
   .weather-temp { display: none; }
+  .weather-loc-inline { display: none; }
   .week-grid { grid-template-columns: 36px repeat(5, minmax(60px, 1fr)); }
   .lesson-tile { padding: 4px 5px; }
   .tile-subject { font-size: 9px; }
