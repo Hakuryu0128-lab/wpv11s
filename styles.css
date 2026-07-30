@@ -1578,11 +1578,18 @@ img { max-width: 100%; display: block; }
   background-position: right 10px center;
   padding-right: 28px !important;
 }
+/* v11.15.0：デザイン統一Phase3。.filter-select（進度・出席の学級/教科
+   フィルター）はグラデーション敷きのページに直接置かれる操作パーツなので、
+   .btn-secondaryと同じ--glass-control-*に統一（こちらは他カードに
+   ネストされないため、.ob-inputと同じくbackdrop-filterも付ける）。 */
 .filter-select {
   padding: 6px 10px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background-color: var(--bg);
+  border: 1px solid var(--glass-control-border);
+  background-color: var(--glass-control-bg);
+  backdrop-filter: blur(var(--glass-control-blur)) saturate(var(--glass-control-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-control-blur)) saturate(var(--glass-control-saturate));
+  box-shadow: var(--glass-control-shadow);
   font-size: 13px;
   min-height: 38px;
   min-width: 96px;
@@ -2197,11 +2204,19 @@ img { max-width: 100%; display: block; }
 .school-del:hover { background: #FEE2E2; color: var(--danger); }
 
 /* Attendance grid */
+/* v11.15.0：デザイン統一Phase3。.att-grid-wrap／.progress-compare-wrap／
+   .abs-wrap／.eval-listは、v11.7.1で「セル一つ一つに背景が無く透明だと
+   ページのグラデーションがセルごとに透けて色ムラになる」不具合を防ぐため
+   意図的にbackground: var(--bg)（完全不透明）にしてある（詳細は上のv11.7.1
+   コメント参照）。この不透明前提は崩さず、--glass-card-bg（同じく不透明、
+   ほんの少し白寄りの色味）に置き換えることでcolor-mix由来の色ムラ再発を
+   避けつつ、硬いグレー1px枠→柔らかい半透明フチ＋影のカードに統一した。 */
 .att-grid-wrap {
   overflow-x: auto;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-card-border);
   border-radius: var(--radius);
-  background: var(--bg);
+  background: var(--glass-card-bg);
+  box-shadow: var(--glass-card-shadow);
 }
 .att-head, .att-row {
   display: grid;
@@ -2259,7 +2274,7 @@ img { max-width: 100%; display: block; }
 /* v11.7.1：背景に薄いグラデーションを敷いたページ(進度/出席/評価)では、
    表の中のセルに背景色が付いていないと下のグラデーションが透けて見えて
    しまい違和感が出るため、表のラッパーに不透明な背景を敷いて遮断する。 */
-.progress-compare-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.progress-compare-wrap { overflow-x: auto; border: 1px solid var(--glass-card-border); border-radius: var(--radius); background: var(--glass-card-bg); box-shadow: var(--glass-card-shadow); }
 /* width:max-content + min-width:100% → 学級が少なければ幅いっぱい、
    多ければ列幅を保って横スクロール（潰れない） */
 .progress-compare { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -2326,7 +2341,7 @@ img { max-width: 100%; display: block; }
 .att-start-btn { margin-left: auto; }
 
 /* 教科別・何回目ベースの出欠マトリクス */
-.abs-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.abs-wrap { overflow-x: auto; border: 1px solid var(--glass-card-border); border-radius: var(--radius); background: var(--glass-card-bg); box-shadow: var(--glass-card-shadow); }
 .abs-table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 13px; }
 .abs-table th, .abs-table td { border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .abs-table th { position: sticky; top: 0; z-index: 1; background: var(--bg-subtle); padding: 6px 4px; font-weight: 700; color: var(--gray-700); }
@@ -2630,7 +2645,7 @@ img { max-width: 100%; display: block; }
 }
 
 /* Evaluation list */
-.eval-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg); }
+.eval-list { display: flex; flex-direction: column; border: 1px solid var(--glass-card-border); border-radius: var(--radius); overflow: hidden; background: var(--glass-card-bg); box-shadow: var(--glass-card-shadow); }
 .eval-row {
   display: grid;
   grid-template-columns: 200px 90px 1fr;
@@ -2647,7 +2662,15 @@ img { max-width: 100%; display: block; }
 .eval-memo:focus, .eval-grade:focus { outline: none; border-color: var(--student); }
 
 /* 評価：点数入力の表（氏名は固定幅、項目を足すほど右に伸びて横スクロール） */
-.evt-wrap { display: inline-block; max-width: 100%; vertical-align: top; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+/* v11.15.0：デザイン統一Phase3で発見した不具合修正。.evt-wrap（評価タブの
+   表を囲むラッパー）だけ、兄弟にあたる.abs-wrap／.progress-compare-wrap／
+   .att-grid-wrapと違いbackgroundが未指定のまま透明だった。評価タブの
+   奇数行（.evt-table tbody tr:nth-child(odd) td.evt-cell、ゼブラ配色の対象外＝
+   個別背景なし）は、#view-evaluationの二重グラデーションがセルごとに
+   透けて色ムラになっていたはず（v11.7.1で他の表に対して修正したのと
+   同じ不具合）。他の表と同じく--glass-card-bg（不透明）で塞ぎ、
+   ついでに枠線・影も他の表と統一した。 */
+.evt-wrap { display: inline-block; max-width: 100%; vertical-align: top; overflow-x: auto; border: 1px solid var(--glass-card-border); border-radius: var(--radius); background: var(--glass-card-bg); box-shadow: var(--glass-card-shadow); }
 .evt-table { border-collapse: collapse; width: auto; font-size: 14px; }
 .evt-table th, .evt-table td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .evt-table thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-subtle); font-weight: 700; color: var(--gray-700); padding: 8px 10px; white-space: nowrap; }
@@ -3125,14 +3148,19 @@ img { max-width: 100%; display: block; }
 }
 
 /* Backup cards */
+/* v11.15.0：デザイン統一Phase3。.backup-cardは.settings-section（既に
+   --glass-card-*でぼかし済みのカード）の内側に並ぶ行なので、ToDoカードや
+   メモカードと同じ--glass-nested-*（自身にはbackdrop-filterを付けない）に
+   統一。 */
 .backup-cards { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .backup-card {
   display: flex; align-items: center; gap: 14px; text-align: left;
   padding: 16px 18px; border-radius: 14px;
-  border: 1.5px solid var(--border); background: var(--bg);
+  border: 1px solid var(--glass-nested-border); background: var(--glass-nested-bg);
+  box-shadow: var(--glass-nested-shadow);
   transition: border-color var(--fast), transform var(--fast), box-shadow var(--fast);
 }
-.backup-card:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.backup-card:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--glass-nested-shadow-hover); }
 .backup-card-icon { font-size: 26px; }
 .backup-card-texts { display: flex; flex-direction: column; gap: 2px; }
 .backup-card-title { font-size: 15px; font-weight: 700; color: var(--gray-800); }

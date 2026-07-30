@@ -278,6 +278,25 @@
    付けていない（.hw-picker-overlayのみ元々ぼかしが無かったため
    blur(3px)を新規追加し、他のオーバーレイと足並みを揃えた）。
    app.js側の変更なし（CSSのみ）。
+   v11.15.0：デザイン統一計画のPhase3（内部リスト/テーブルの細部磨き）。
+   ①進度・出席・評価の表を囲むラッパー（.progress-compare-wrap／
+   .att-grid-wrap／.abs-wrap／.eval-list）は、v11.7.1で「セルに個別の
+   背景が無いとページのグラデーションがセルごとに透けて色ムラになる」
+   不具合を防ぐため意図的にbackground: var(--bg)（完全不透明）にして
+   あった。その不透明の前提は崩さず、--glass-card-bg（同じく完全不透明、
+   ほんの少し白寄りの色味）に置き換え、硬いグレー1px枠→柔らかい半透明
+   フチ＋影のカードに統一。②その過程で、評価タブの表を囲む.evt-wrapだけ
+   兄弟のラッパーと違いbackgroundが未指定のまま透明になっている不具合を
+   発見。ゼブラ配色の対象外になる奇数行のセル（.evt-cell、個別背景なし）
+   から#view-evaluationのグラデーションが透けて色ムラになっていたはずで、
+   他の表と同じ--glass-card-bgで塞いで修正。③.backup-card（バックアップの
+   カード一覧）は.settings-section（既にぼかし済みのカード）の内側に
+   並ぶ行なので、ToDoカード等と同じ--glass-nested-*に統一。④.filter-select
+   （進度・出席・評価のフィルタープルダウン）は.btn-secondaryと同じ
+   --glass-control-*に統一。写真タイル（.photo-item）は実際の写真画像が
+   ほぼ常に覆っているコンテナで、背景色は読み込み中の一瞬しか見えない
+   ものなので、ガラス化の対象外とした（画像自体を半透明にする理由が
+   無いため）。app.js側の変更なし（CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -285,7 +304,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.14.0';
+const APP_VERSION = '11.15.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
