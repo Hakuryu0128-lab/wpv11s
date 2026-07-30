@@ -219,6 +219,31 @@
    既定どおり親（.view-page、max-width:1000pxで中央寄せ）の左端に詰まって
    いた。margin:0 autoを追加して中央寄せにし、あわせてmax-widthも720→880px
    に広げてページ幅とのバランスを取った。app.js側の変更なし（CSSのみ）。
+   v11.12.0：アプリ全体のデザイン統一（ガラスモーフィズム）計画の第1弾
+   「土台」。これまでToDo・印刷・名簿・設定・オンボーディング・授業モーダル
+   などがそれぞれ独自の数値でcolor-mix()/backdrop-filter()を手書きしており、
+   ぼかしの強さや半透明度が画面ごとに微妙にバラバラだった。styles.cssの
+   :rootに5段階の共通トークンを新設（--glass-panel-*＝グラデーション背景
+   に直接浮くパネル、--glass-card-*＝ページ単体のカード、--glass-nested-*
+   ＝パネル内側の入れ子カード、--glass-control-*＝入力欄・小ボタン、
+   --glass-elevated-*＝最前面の通知）。値は各カテゴリで最も完成度が高い
+   既存実装（設定のセクションカード／オンボーディングの入力欄／ToDo列・
+   印刷トグル・名簿カラム／ToDoの締切通知）を正として採用し、見た目を
+   大きく変えるのではなく既存の質感をトークンに集約する低リスクな統合と
+   した。.todo-compose/.todo-col/.todo-card/.todo-notif/.note-item/
+   .rm-col/.rm-item/.print-type-toggle/.settings-section/.ob-input/
+   .ob-mini-btn/.lm-col（授業モーダル）をトークン参照に置き換え。
+   この過程で2件の実バグも修正：①.rm-colの背景が実は完全不透明な
+   色（color-mix(in srgb, var(--gray-200) 55%, var(--bg))）になっており、
+   指定されていたbackdrop-filter: blur(22px)が何も透過するものが無く
+   実質無効化されていた（名簿ページの3カラムがガラス風に見えなかった
+   原因）。②.note-itemだけ他画面と方向性が異なる灰色寄りの
+   「ニューモーフィズム風」の独自レシピになっていたため、他画面と
+   同じ白ベースのガラス表現（--glass-nested-*）に統一。ゲート画面
+   （アクティベーション・PINロック）とQR受付オーバーレイは暗色背景の
+   別デザイン言語のため今回は対象外。この土台の上に今後ヘッダー・
+   サイドバー・ボタン・入力欄などのガラス化（Tier1以降）を進める予定
+   （ユーザーの承認を得てから着手）。app.js側の変更なし（CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -226,7 +251,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.11.1';
+const APP_VERSION = '11.12.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

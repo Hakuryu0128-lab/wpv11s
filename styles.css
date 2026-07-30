@@ -60,6 +60,52 @@
   --shadow:          0 4px 12px rgba(0,0,0,.10);
   --shadow-lg:       0 12px 32px rgba(0,0,0,.14);
 
+  /* ── Glassmorphism design tokens（v11.12.0〜、全体デザイン統一の土台）──
+     これまでToDo・印刷・名簿・設定・オンボーディング等がそれぞれ独自の数値で
+     color-mix()/backdrop-filter()を手書きしていた「ガラスの質感」を4段階に
+     整理し、共通変数にまとめた。値は既存コンポーネントの中で最も完成度が
+     高かったもの（オンボーディングの入力欄・設定のセクションカード等）を
+     正として採用している。今後ヘッダー・サイドバー・ボタン・入力欄などを
+     ガラス化していく際は、新しい値を都度考えるのではなく必ずこの4種類の
+     どれかを使う。
+       ・--glass-panel-*  ：グラデーション背景の上に直接浮く、やや大きめの
+         半透明パネル（ToDoの列、印刷ページの切替トグル、名簿の3カラムなど）
+       ・--glass-card-*   ：ページに単体で置く、存在感のある不透明寄りカード
+         （設定のセクションカードなど。ページ直下に浮くので影がやや強め）
+       ・--glass-nested-* ：glass-panelの内側に入れ子で置く、控えめなカード
+         （ToDoカード・メモカード・名簿の行など。親が既にぼかしているので
+         自身にはbackdrop-filterを付けない）
+       ・--glass-elevated-*：画面の最前面に浮く通知・トースト等。最も強い
+         ぼかし・浮遊感（ToDoの締切通知など） */
+  --glass-panel-blur:      20px;
+  --glass-panel-saturate:  1.55;
+  --glass-panel-bg:        color-mix(in srgb, var(--bg) 75%, transparent);
+  --glass-panel-border:    color-mix(in srgb, #fff 50%, transparent);
+  --glass-panel-shadow:    0 10px 30px rgba(16,24,40,.10), inset 0 1px 0 rgba(255,255,255,.55);
+
+  --glass-card-blur:       16px;
+  --glass-card-saturate:   1.4;
+  --glass-card-bg:         color-mix(in srgb, var(--bg) 86%, #fff);
+  --glass-card-border:     color-mix(in srgb, #fff 55%, transparent);
+  --glass-card-shadow:     0 10px 28px rgba(16,24,40,.08), inset 0 1px 0 rgba(255,255,255,.55);
+
+  --glass-nested-bg:            color-mix(in srgb, var(--bg) 88%, #fff);
+  --glass-nested-border:        color-mix(in srgb, #fff 40%, transparent);
+  --glass-nested-shadow:        0 2px 8px rgba(16,24,40,.05), inset 0 1px 0 rgba(255,255,255,.5);
+  --glass-nested-shadow-hover:  0 6px 16px rgba(16,24,40,.10);
+
+  --glass-control-blur:     14px;
+  --glass-control-saturate: 1.8;
+  --glass-control-bg:       color-mix(in srgb, var(--bg) 42%, transparent);
+  --glass-control-border:   color-mix(in srgb, #fff 55%, transparent);
+  --glass-control-shadow:   inset 0 1px 0 rgba(255,255,255,.5);
+
+  --glass-elevated-blur:      26px;
+  --glass-elevated-saturate:  1.7;
+  --glass-elevated-bg:        color-mix(in srgb, var(--bg) 62%, transparent);
+  --glass-elevated-border:    color-mix(in srgb, #fff 45%, transparent);
+  --glass-elevated-shadow:    0 14px 40px rgba(16,24,40,.20), inset 0 1px 0 rgba(255,255,255,.5);
+
   /* Transitions */
   --ease:   cubic-bezier(.4,0,.2,1);
   --fast:   160ms;
@@ -1199,11 +1245,13 @@ img { max-width: 100%; display: block; }
   display: flex; align-items: center; gap: 10px;
   padding: 8px 8px 8px 18px; margin-bottom: 16px; flex-shrink: 0;
   border-radius: 20px;
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
-  box-shadow: 0 8px 26px rgba(16,24,40,.08), inset 0 1px 0 rgba(255,255,255,.6);
+  /* v11.12.0: 共通トークン化。グラデーション背景に直接浮くパネルなので
+     glass-panel系（他はToDoの列・印刷の切替トグル・名簿の3カラムと同じ） */
+  background: var(--glass-panel-bg);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border: 1px solid var(--glass-panel-border);
+  box-shadow: var(--glass-panel-shadow);
 }
 .todo-compose .quick-add-icon { color: var(--brand); display: flex; }
 .todo-compose-text {
@@ -1246,11 +1294,13 @@ img { max-width: 100%; display: block; }
   max-height: 100%;
   display: flex; flex-direction: column;
   border-radius: 22px;
-  background: color-mix(in srgb, var(--col-color, var(--brand)) 13%, color-mix(in srgb, var(--bg) 72%, transparent));
-  backdrop-filter: blur(22px) saturate(1.6);
-  -webkit-backdrop-filter: blur(22px) saturate(1.6);
-  border: 1px solid color-mix(in srgb, #fff 50%, transparent);
-  box-shadow: 0 10px 30px rgba(16,24,40,.10), inset 0 1px 0 rgba(255,255,255,.55);
+  /* v11.12.0: glass-panel系。列ごとの色(--col-color)を乗せたいのでbgだけは
+     個別（ベースはglass-panel-bgと同じ透明度）、blur/border/shadowは共通化。 */
+  background: color-mix(in srgb, var(--col-color, var(--brand)) 13%, var(--glass-panel-bg));
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border: 1px solid var(--glass-panel-border);
+  box-shadow: var(--glass-panel-shadow);
 }
 .todo-col--done { flex-basis: 240px; opacity: .85; }
 .todo-col-head {
@@ -1274,12 +1324,14 @@ img { max-width: 100%; display: block; }
 .todo-card {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 12px 12px; border-radius: 14px;
-  background: color-mix(in srgb, var(--bg) 88%, #fff);
-  border: 1px solid color-mix(in srgb, #fff 40%, transparent);
-  box-shadow: 0 2px 8px rgba(16,24,40,.05), inset 0 1px 0 rgba(255,255,255,.5);
+  /* v11.12.0: glass-nested系（todo-colという既にぼかし済みの親の中に入れ子で
+     置くカードなので、自身にbackdrop-filterは付けない） */
+  background: var(--glass-nested-bg);
+  border: 1px solid var(--glass-nested-border);
+  box-shadow: var(--glass-nested-shadow);
   transition: transform var(--fast), box-shadow var(--fast), opacity var(--fast);
 }
-.todo-card:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(16,24,40,.10); }
+.todo-card:hover { transform: translateY(-1px); box-shadow: var(--glass-nested-shadow-hover); }
 .todo-card--done { opacity: .55; }
 .todo-check {
   width: 24px; height: 24px; flex-shrink: 0; margin-top: 1px;
@@ -1337,10 +1389,12 @@ img { max-width: 100%; display: block; }
   display: flex; align-items: flex-start; gap: 12px;
   width: 320px; padding: 14px 16px;
   border-radius: 18px; cursor: pointer;
-  background: color-mix(in srgb, var(--bg) 62%, transparent);
-  backdrop-filter: blur(26px) saturate(1.7); -webkit-backdrop-filter: blur(26px) saturate(1.7);
-  border: 1px solid color-mix(in srgb, #fff 45%, transparent);
-  box-shadow: 0 14px 40px rgba(16,24,40,.20), inset 0 1px 0 rgba(255,255,255,.5);
+  /* v11.12.0: glass-elevated系（画面最前面に浮くトースト。最も強いぼかし） */
+  background: var(--glass-elevated-bg);
+  backdrop-filter: blur(var(--glass-elevated-blur)) saturate(var(--glass-elevated-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-elevated-blur)) saturate(var(--glass-elevated-saturate));
+  border: 1px solid var(--glass-elevated-border);
+  box-shadow: var(--glass-elevated-shadow);
   transform: translateX(130%); opacity: 0;
   transition: transform .5s cubic-bezier(.22,1,.36,1), opacity .4s;
 }
@@ -1766,14 +1820,16 @@ img { max-width: 100%; display: block; }
   flex-shrink: 0;
   padding: 12px 14px;
   border-radius: 14px;
-  /* ニューモーフィズム風：1枚ずつ浮いて見えるカード */
-  background: color-mix(in srgb, var(--bg) 88%, var(--gray-200));
-  border: 1px solid color-mix(in srgb, var(--gray-300) 55%, transparent);
-  box-shadow: 0 2px 6px rgba(16,24,40,.07), inset 0 1px 0 rgba(255,255,255,.55);
+  /* v11.12.0: 以前はグレー寄りのニューモーフィズム風カードだったが、アプリ
+     全体をガラスモーフィズムに統一する方針のためglass-nested系に変更
+     （ToDoカードと同じ「入れ子の内側カード」ファミリー）。 */
+  background: var(--glass-nested-bg);
+  border: 1px solid var(--glass-nested-border);
+  box-shadow: var(--glass-nested-shadow);
   cursor: pointer;
   transition: transform var(--fast), box-shadow var(--fast), border-color var(--fast), background var(--fast);
 }
-.note-item:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(16,24,40,.13), inset 0 1px 0 rgba(255,255,255,.6); }
+.note-item:hover { transform: translateY(-2px); box-shadow: var(--glass-nested-shadow-hover); }
 .note-item.active {
   background: var(--brand-light);
   border-color: var(--brand);
@@ -1873,21 +1929,21 @@ img { max-width: 100%; display: block; }
     var(--bg-subtle);
 }
 /* each column = floating frosted-glass card */
+/* v11.12.0: 以前はbackgroundがcolor-mix(gray-200, --bg)＝不透明な灰色で、
+   backdrop-filterのぼかしが実質何もぼかしていない状態だった（透けるものが
+   無かったため）。glass-panel系に統一し、本当に背景のグラデーションが
+   透けて見える「ガラス」にした。ボーダーも灰色寄りから白フチに統一。 */
 .rm-col {
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
   border-radius: 22px;
-  /* 背景を少し濃いめ＆強い影で、各ブロックがページから鮮明に浮き出るように */
-  background: color-mix(in srgb, var(--gray-200) 55%, var(--bg));
-  backdrop-filter: blur(22px) saturate(1.6);
-  -webkit-backdrop-filter: blur(22px) saturate(1.6);
-  border: 1px solid color-mix(in srgb, var(--gray-300) 70%, transparent);
-  box-shadow:
-    0 14px 40px rgba(16, 24, 40, .16),
-    0 3px 10px rgba(16, 24, 40, .08),
-    inset 0 1px 0 rgba(255, 255, 255, .5);
+  background: var(--glass-panel-bg);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border: 1px solid var(--glass-panel-border);
+  box-shadow: var(--glass-panel-shadow);
 }
 .rm-col#rmSchoolCol  { width: 230px; flex-shrink: 0; }
 .rm-col#rmClassCol   { width: 250px; flex-shrink: 0; }
@@ -1904,18 +1960,20 @@ img { max-width: 100%; display: block; }
 .rm-list { flex: 1; overflow-y: auto; padding: 4px 10px 10px; display: flex; flex-direction: column; gap: 6px; scrollbar-width: thin; }
 .rm-empty { padding: 28px 16px; text-align: center; color: var(--gray-400); font-size: 13px; line-height: 1.7; }
 
+/* v11.12.0: glass-nested系（rm-colという既にぼかし済みの親の中の行なので、
+   自身は不透明寄りにして生徒名などの可読性を優先。ToDoカードと同じ考え方）。 */
 .rm-item {
   display: flex; align-items: stretch; gap: 2px;
   /* 学級が増えても潰れず高さを保ち、リスト側(.rm-list overflow-y:auto)でスクロール */
   flex-shrink: 0;
   min-height: 54px;
   border-radius: 14px; overflow: hidden;
-  border: 1px solid transparent;
-  background: color-mix(in srgb, var(--bg) 60%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+  border: 1px solid var(--glass-nested-border);
+  background: var(--glass-nested-bg);
+  box-shadow: var(--glass-nested-shadow);
   transition: background var(--fast), border-color var(--fast), transform var(--fast), box-shadow var(--fast);
 }
-.rm-item:hover { background: color-mix(in srgb, var(--bg) 85%, transparent); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(16,24,40,.08); }
+.rm-item:hover { transform: translateY(-1px); box-shadow: var(--glass-nested-shadow-hover); }
 .rm-item.active {
   background: color-mix(in srgb, var(--student) 16%, var(--bg));
   border-color: color-mix(in srgb, var(--student) 55%, transparent);
@@ -2885,17 +2943,18 @@ img { max-width: 100%; display: block; }
    v11.6.0：スタジオ化に伴い、track自体もToDo系と同じすりガラス質感
    （半透明＋backdrop-filter）に変更し、グレー背景よりも背景グラデーション
    と馴染むようにした。 */
+/* v11.12.0: glass-panel系に統一（ToDoの列・名簿の3カラムと同じファミリー） */
 .print-type-toggle {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
-  backdrop-filter: blur(18px) saturate(1.5);
-  -webkit-backdrop-filter: blur(18px) saturate(1.5);
-  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
+  background: var(--glass-panel-bg);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border: 1px solid var(--glass-panel-border);
   border-radius: var(--radius-lg);
   padding: 4px;
-  box-shadow: 0 8px 22px rgba(16,24,40,.08);
+  box-shadow: var(--glass-panel-shadow);
 }
 .print-type-toggle-thumb {
   position: absolute;
@@ -3009,15 +3068,17 @@ img { max-width: 100%; display: block; }
    背景（.print-preview-frame改修前の旧印刷ページと同じ見た目）で、アプリ内で
    ここだけ浮いていた。半透明の白フチ＋柔らかい影＋軽いブラーに変更し、
    デザイン言語を揃えた。 */
+/* v11.12.0: glass-cardトークンに置き換え（値は変更なし、DRY化のみ）。
+   このセクションカードの値がglass-card系の基準になっている。 */
 .settings-section {
-  background: color-mix(in srgb, var(--bg) 86%, #fff);
-  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
+  background: var(--glass-card-bg);
+  border: 1px solid var(--glass-card-border);
   border-radius: var(--radius-lg);
   padding: 22px;
   margin-bottom: 18px;
-  box-shadow: 0 10px 28px rgba(16,24,40,.08), inset 0 1px 0 rgba(255,255,255,.55);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow: var(--glass-card-shadow);
+  backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
 }
 .settings-section.hidden { display: none; }
 .settings-section h3 {
@@ -3379,10 +3440,11 @@ img { max-width: 100%; display: block; }
 .lm-col {
   display: flex; flex-direction: column;
   border-radius: 20px;
-  background: color-mix(in srgb, var(--bg) 74%, transparent);
-  backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border: 1px solid color-mix(in srgb, #fff 50%, transparent);
-  box-shadow: 0 10px 30px rgba(16,24,40,.08), inset 0 1px 0 rgba(255,255,255,.5);
+  background: var(--glass-panel-bg);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border: 1px solid var(--glass-panel-border);
+  box-shadow: var(--glass-panel-shadow);
   overflow: hidden;
 }
 .lm-col--info   { width: 330px; flex-shrink: 0; padding: 14px; overflow-y: auto; gap: 10px; }
@@ -4635,12 +4697,16 @@ img { max-width: 100%; display: block; }
 
 .ob-field { text-align: left; margin: 0 auto 14px; max-width: 360px; }
 .ob-field label { display: block; font-size: 13px; font-weight: 700; color: var(--text-muted); margin: 0 0 6px 2px; }
+/* v11.12.0: この入力欄が全体統一のglass-controlトークンの基準になっている
+   （値はそのまま、DRY化のみ）。今後ヘッダー等の入力欄・ボタンをガラス化する
+   際もglass-control-*を使う。 */
 .ob-input {
   width: 100%; padding: 13px 18px; font-size: 16px; color: var(--text);
-  -webkit-backdrop-filter: blur(14px) saturate(180%); backdrop-filter: blur(14px) saturate(180%);
-  background: color-mix(in srgb, var(--bg) 42%, transparent);
-  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+  -webkit-backdrop-filter: blur(var(--glass-control-blur)) saturate(var(--glass-control-saturate));
+  backdrop-filter: blur(var(--glass-control-blur)) saturate(var(--glass-control-saturate));
+  background: var(--glass-control-bg);
+  border: 1px solid var(--glass-control-border);
+  box-shadow: var(--glass-control-shadow);
   border-radius: 999px;
   transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
 }
@@ -4673,11 +4739,14 @@ img { max-width: 100%; display: block; }
 
 .ob-inline { display: flex; gap: 8px; max-width: 360px; margin: 0 auto 12px; }
 .ob-inline .ob-input { flex: 1; }
+/* v11.12.0: glass-controlトークンを利用（ボタンなのでinset影に加えて
+   浮き上がり用のドロップシャドウを1層足している） */
 .ob-mini-btn {
   flex: 0 0 auto; padding: 12px 18px; border-radius: 999px;
-  -webkit-backdrop-filter: blur(14px) saturate(180%); backdrop-filter: blur(14px) saturate(180%);
-  background: color-mix(in srgb, var(--bg) 42%, transparent);
-  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-control-blur)) saturate(var(--glass-control-saturate));
+  backdrop-filter: blur(var(--glass-control-blur)) saturate(var(--glass-control-saturate));
+  background: var(--glass-control-bg);
+  border: 1px solid var(--glass-control-border);
   box-shadow: 0 6px 18px rgba(34,36,58,.10), inset 0 1px 0 rgba(255,255,255,.6);
   color: var(--text); font-size: 14px; font-weight: 700;
   transition: background var(--fast) var(--ease), transform var(--fast) var(--ease);
