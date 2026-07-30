@@ -327,6 +327,12 @@ img { max-width: 100%; display: block; }
 }
 
 /* ── Header ──────────────────────────────────────────────── */
+/* v11.13.0：デザイン統一Phase1。以前は border-bottom: 1px solid var(--border) +
+   背景 var(--bg) の完全な不透明バーだったが、他画面のカード類と質感を
+   揃えるため --glass-card-* トークンに変更（硬いグレーの境界線→柔らかい
+   半透明の縁+影）。ヘッダーの下に重なってスクロールするコンテンツが
+   無いためbackdrop-filterの視覚効果は控えめだが、影・縁の質感は
+   settings-sectionなどと統一される。 */
 .app-header {
   height: calc(var(--header-h) + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
@@ -335,8 +341,11 @@ img { max-width: 100%; display: block; }
   gap: 8px;
   padding-left: 14px;
   padding-right: 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  border-bottom: 1px solid var(--glass-card-border);
+  background: var(--glass-card-bg);
+  backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  box-shadow: var(--glass-card-shadow);
   flex-shrink: 0;
   z-index: 100;
 }
@@ -939,16 +948,22 @@ img { max-width: 100%; display: block; }
 .grid-cell--slim .empty-cell-btn { font-size: 16px; }
 
 /* ── Context Panel ───────────────────────────────────────── */
+/* v11.13.0：デザイン統一Phase1。ヘッダーと同じ理由でborder-left: 1px solid
+   var(--border) + 不透明背景を --glass-card-* に統一（settings-sectionと
+   同じ質感のカードに）。 */
 .context-panel {
   width: var(--context-w);
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--glass-card-border);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--gray-300) transparent;
-  background: var(--bg);
+  background: var(--glass-card-bg);
+  backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  box-shadow: -8px 0 24px rgba(16,24,40,.05);
   transition: width var(--normal) var(--ease), opacity var(--normal) var(--ease);
   /* bottom safe-area handled by .content-area (parent) now */
 }
@@ -3276,21 +3291,29 @@ img { max-width: 100%; display: block; }
 .btn-primary:hover { background: var(--brand-hover); }
 .btn-primary:active { background: var(--brand-dark); }
 
+/* v11.13.0：デザイン統一Phase1。オンボーディングの.ob-mini-btnと同じ
+   --glass-control-* の配色・縁・影に統一（不透明なグレー系ボタン→半透明の
+   ガラスボタン）。ただし.btn-secondaryはsettings-section等の既にぼかし
+   済みのカード内にネストされる場面が多いため、backdrop-filterは付けず
+   （glass-nested系と同じ考え方＝二重ぼかしを避ける）配色だけ揃える。
+   .btn-primaryは主要アクションの視認性・コントラストを最優先し、あえて
+   不透明のブランド色のまま維持（ガラス化の対象外）。 */
 .btn-secondary {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 7px 14px;
   border-radius: var(--radius-sm);
-  background: var(--bg);
+  background: var(--glass-control-bg);
   color: var(--gray-700);
   font-size: 13.5px;
   font-weight: 500;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-control-border);
+  box-shadow: var(--glass-control-shadow);
   transition: background var(--fast), border-color var(--fast);
   min-height: 36px;
 }
-.btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--bg) 55%, transparent); border-color: var(--gray-300); }
 
 .btn-ghost {
   display: inline-flex;

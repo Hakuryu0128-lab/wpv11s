@@ -244,6 +244,21 @@
    別デザイン言語のため今回は対象外。この土台の上に今後ヘッダー・
    サイドバー・ボタン・入力欄などのガラス化（Tier1以降）を進める予定
    （ユーザーの承認を得てから着手）。app.js側の変更なし（CSSのみ）。
+   v11.13.0：デザイン統一計画のPhase1（常時表示チロム）。ユーザーに
+   確認したところ、左のサイドバー（濃紺グラデーション地に白アイコン）は
+   他画面とは別系統の完成されたデザインとして現状維持を選択。そのため
+   Phase1の対象はヘッダー（.app-header）とコンテキストパネル
+   （.context-panel）、共通ボタン（.btn-secondary）に絞った。
+   ①.app-headerと.context-panelは、これまで border: 1px solid
+   var(--border) ＋不透明背景 var(--bg) というハードな区切り線だったのを
+   --glass-card-*トークン（settings-sectionと同じ質感）に統一し、硬い
+   境界線→柔らかい半透明の縁＋影に変更。②.btn-secondaryは.ob-mini-btnと
+   同じ--glass-control-*の配色・縁・影に統一。ただしsettings-section等の
+   既にぼかし済みのカード内にネストされる場面が多いため、backdrop-filter
+   自体は付けず配色だけ揃えた（二重ぼかしを避けるglass-nestedと同じ考え
+   方）。③.btn-primaryは主要アクションの視認性・コントラストを最優先し、
+   あえて不透明のブランド色のまま維持（意図的にガラス化の対象外）。
+   app.js側の変更なし（CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -251,7 +266,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.12.0';
+const APP_VERSION = '11.13.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
