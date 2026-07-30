@@ -259,6 +259,25 @@
    方）。③.btn-primaryは主要アクションの視認性・コントラストを最優先し、
    あえて不透明のブランド色のまま維持（意図的にガラス化の対象外）。
    app.js側の変更なし（CSSのみ）。
+   v11.14.0：デザイン統一計画のPhase2（背景グラデーション＋モーダル/
+   オーバーレイのガラス化）。①週案（#view-weekly）とメモ（.notes-app）が
+   アプリの中で唯一グラデーション背景の無い不透明ページだったため、
+   進度・月行事・写真等と同じ二重radial-gradient（--brand系）を追加。
+   週案は授業が入っていないマス（.grid-cell、背景指定なし＝透明）から
+   グラデーションが透けて見え、授業が入ったマスは引き続き不透明な
+   var(--bg)なので「グラデーションに浮く白いタイル」に見える。メモは
+   左の一覧カラム（.notes-sidebar）を名簿の.rm-colと同じ理由で不透明
+   var(--bg-subtle)＋硬いborder-rightから--glass-panel-*トークンに変更し、
+   グラデーションが透けるガラスパネルにした。②アプリ全体で使う共通の
+   モーダル/ポップアップカード4種（確認・編集用の.modal、授業移動用の
+   .move-picker、検索用の.search-box、手書きペンの色選択.hw-picker-card）
+   を、不透明background: var(--bg)から--glass-card-*トークン（背景・縁・
+   影）に統一。いずれも自身の外側に専用の暗転＋ぼかしオーバーレイ
+   （#dialogBackdrop等、既にbackdrop-filterでページ側をぼかし済み）が
+   あるため、カード自身には二重ぼかしを避けるためbackdrop-filterを
+   付けていない（.hw-picker-overlayのみ元々ぼかしが無かったため
+   blur(3px)を新規追加し、他のオーバーレイと足並みを揃えた）。
+   app.js側の変更なし（CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -266,7 +285,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.13.0';
+const APP_VERSION = '11.14.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

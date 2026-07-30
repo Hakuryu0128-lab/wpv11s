@@ -1780,18 +1780,29 @@ img { max-width: 100%; display: block; }
 .event-input:focus { background: color-mix(in srgb, var(--brand) 6%, transparent); }
 
 /* ── Notes (iPad-style two-pane) ─────────────────────────── */
+/* v11.14.0：デザイン統一Phase2。ToDo(.todo-board-wrap)・名簿(.roster-manager)
+   と同じ二重radial-gradient背景をメモページにも追加（唯一グラデーションが
+   無い不透明ページだった）。.notes-sidebarも.rm-col（名簿の3カラム）と
+   同じ理由で不透明var(--bg-subtle)＋硬いborder-rightのままだと背景が
+   透けないため、--glass-panel-*トークンに変更してガラス風にした。 */
 .notes-app {
   display: flex;
   height: 100%;
   overflow: hidden;
+  background:
+    radial-gradient(900px 360px at 0% 0%, color-mix(in srgb, var(--brand) 12%, transparent), transparent),
+    radial-gradient(820px 420px at 100% 100%, color-mix(in srgb, var(--brand-hover) 10%, transparent), transparent),
+    var(--bg-subtle);
 }
 .notes-sidebar {
   width: 300px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--glass-panel-border);
   display: flex;
   flex-direction: column;
-  background: var(--bg-subtle);
+  background: var(--glass-panel-bg);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
   overflow: hidden;
 }
 .notes-sidebar-head {
@@ -2764,8 +2775,9 @@ img { max-width: 100%; display: block; }
   padding: 16px; backdrop-filter: blur(3px);
 }
 .move-picker {
-  background: var(--bg); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg); width: 100%; max-width: 520px;
+  background: var(--glass-card-bg); border: 1px solid var(--glass-card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-card-shadow); width: 100%; max-width: 520px;
   padding: 16px; max-height: 90vh; overflow: auto;
 }
 .move-picker-head {
@@ -2797,8 +2809,9 @@ img { max-width: 100%; display: block; }
   padding: 64px 16px 16px; backdrop-filter: blur(3px);
 }
 .search-box {
-  background: var(--bg); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg); width: 100%; max-width: 600px;
+  background: var(--glass-card-bg); border: 1px solid var(--glass-card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-card-shadow); width: 100%; max-width: 600px;
   max-height: 70vh; display: flex; flex-direction: column; overflow: hidden;
 }
 .search-input-row {
@@ -3035,6 +3048,14 @@ img { max-width: 100%; display: block; }
    出席・評価は学級カラーに合わせた配色にするため、他ページの var(--brand) では
    なく var(--student) を使用（.roster-manager 等、既存の生徒系フルブリード
    ビューと同じ配色ルール）。 */
+/* v11.14.0：デザイン統一Phase2で#view-weeklyを追加。週案はアプリの
+   メイン画面でありながら唯一グラデーション背景が無い不透明ページ
+   だったため、他の一覧系ページと同じ配色に揃えた。空セル（.grid-cell、
+   授業が入っていないマス）は背景指定が無く透明なので、グラデーションは
+   マスの隙間から透けて見える。授業が入ったマス（.grid-cell.has-lesson）
+   は不透明background: var(--bg)のままなので、授業カードは他ページの
+   カード類と同様に「グラデーションの上に浮く白いタイル」として見える。 */
+#view-weekly,
 #view-progress,
 #view-events,
 #view-photos,
@@ -3422,12 +3443,18 @@ img { max-width: 100%; display: block; }
 @keyframes modalPopIn  { from { transform: translateY(14px) scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes modalPopOut { from { transform: none; opacity: 1; } to { transform: translateY(10px) scale(.96); opacity: 0; } }
 
+/* v11.14.0：デザイン統一Phase2。モーダル本体は不透明background: var(--bg)
+   だったのを--glass-card-*（背景・縁・影）に統一。#dialogBackdropが既に
+   ページ側をblur(4px)しているため、モーダル自身にはbackdrop-filterを
+   付けない（glass-nestedと同じ「親が既にぼかしているので自身は付けない」
+   考え方＝二重ぼかしを避ける）。 */
 .modal {
-  background: var(--bg);
+  background: var(--glass-card-bg);
+  border: 1px solid var(--glass-card-border);
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 920px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--glass-card-shadow);
   display: flex;
   flex-direction: column;
   max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
@@ -4927,12 +4954,14 @@ img { max-width: 100%; display: block; }
 .hw-picker-overlay {
   position: fixed; inset: 0; z-index: 5000;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,.45); padding: 20px;
+  background: rgba(0,0,0,.45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  padding: 20px;
 }
 .hw-picker-overlay[hidden] { display: none; }
 .hw-picker-card {
-  width: 100%; max-width: 320px; background: var(--bg); color: var(--text);
-  border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow-lg);
+  width: 100%; max-width: 320px; background: var(--glass-card-bg); color: var(--text);
+  border: 1px solid var(--glass-card-border);
+  border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--glass-card-shadow);
 }
 .hw-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .hw-picker-title { font-size: 15px; font-weight: 700; }
