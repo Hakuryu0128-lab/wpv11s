@@ -1660,13 +1660,18 @@ img { max-width: 100%; display: block; }
 
 /* ── Events Grid ─────────────────────────────────────────── */
 /* Per-day vertical event list */
+/* v11.12.0：margin指定が無くブロック要素として左詰めになっていたため、
+   ページ中央（.view-pageはmax-width:1000pxで中央寄せ）に対して表だけが
+   左に寄って見えるとの指摘を受けて修正。中央寄せ(margin:0 auto)に加えて
+   max-widthも720→880pxに広げ、ページの余白とのバランスを取った。 */
 .events-daylist {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  max-width: 720px;
+  max-width: 880px;
+  margin: 0 auto;
 }
 .event-row {
   display: flex;

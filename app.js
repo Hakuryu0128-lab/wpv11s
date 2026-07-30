@@ -214,6 +214,11 @@
    ツールバー・フッター側の余白を減らし、プレビュー枠(flex:1)が使える
    縦方向のスペース自体を増やした（見た目のバランスが大きく変わらない
    範囲で、プレビューの実際の表示サイズを底上げする狙い）。
+   v11.11.1：月行事タブの表が左に寄って見えるとの指摘を受け修正。
+   .events-daylistがmax-width:720pxのみでmargin指定が無く、ブロック要素の
+   既定どおり親（.view-page、max-width:1000pxで中央寄せ）の左端に詰まって
+   いた。margin:0 autoを追加して中央寄せにし、あわせてmax-widthも720→880px
+   に広げてページ幅とのバランスを取った。app.js側の変更なし（CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -221,7 +226,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.11.0';
+const APP_VERSION = '11.11.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
