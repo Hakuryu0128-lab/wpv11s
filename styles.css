@@ -106,18 +106,12 @@
   --glass-elevated-border:    color-mix(in srgb, #fff 45%, transparent);
   --glass-elevated-shadow:    0 14px 40px rgba(16,24,40,.20), inset 0 1px 0 rgba(255,255,255,.5);
 
-  /* v11.20.1：モーダル系（.modal/.move-picker/.search-box/.hw-picker-card）専用。
-     ユーザーから「もっと薄く、背景がすっけすけなレベルにしてほしい」との
-     追加要望。これらは常に.modal-backdrop（ぼかし済みの暗転レイヤー）の上に
-     乗るため、glass-panelよりさらに不透明度を下げても、backdrop側の
-     blur(6px)のおかげで文字は潰れず「すりガラス越しに向こうが透けて見える」
-     感じになる。中に入っているブロック（フォーム欄・ボタン・リスト行等）は
-     このトークンを使わず個別に不透明背景のままなので、指摘通り中身は透けない。 */
-  --glass-modal-blur:      28px;
-  --glass-modal-saturate:  1.8;
-  --glass-modal-bg:        color-mix(in srgb, var(--bg) 34%, transparent);
-  --glass-modal-border:    color-mix(in srgb, #fff 55%, transparent);
-  --glass-modal-shadow:    0 20px 50px rgba(16,24,40,.18), inset 0 1px 0 rgba(255,255,255,.6);
+  /* v11.20.3：v11.19.0〜v11.20.2でモーダル系を段階的に透明化してきたが、
+     ユーザーから「個人的には透けてない方が一つのブロックとしてわかりやすい」
+     との率直なフィードバックを受け、背景の透明化は全面的に撤回。
+     --glass-modal-*トークン自体は不要になったため削除し、.modal等は
+     元の不透明寄り--glass-card-*に戻した（下記参照）。ただし「角丸は良く
+     なった」との評価は維持しており、border-radius 22pxはそのまま残す。 */
 
   /* Transitions */
   --ease:   cubic-bezier(.4,0,.2,1);
@@ -2825,11 +2819,11 @@ img { max-width: 100%; display: block; }
 }
 /* v11.19.0：.modalと同じ理由でglass-panel化＋角丸22pxに統一（ToDo基準）。 */
 .move-picker {
-  background: var(--glass-modal-bg); border: 1px solid var(--glass-modal-border);
-  backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
+  background: var(--glass-card-bg); border: 1px solid var(--glass-card-border);
+  backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
   border-radius: 22px;
-  box-shadow: var(--glass-modal-shadow); width: 100%; max-width: 520px;
+  box-shadow: var(--glass-card-shadow); width: 100%; max-width: 520px;
   padding: 16px; max-height: 90vh; overflow: auto;
 }
 .move-picker-head {
@@ -2862,11 +2856,11 @@ img { max-width: 100%; display: block; }
 }
 /* v11.19.0：.modalと同じ理由でglass-panel化＋角丸22pxに統一（ToDo基準）。 */
 .search-box {
-  background: var(--glass-modal-bg); border: 1px solid var(--glass-modal-border);
-  backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
+  background: var(--glass-card-bg); border: 1px solid var(--glass-card-border);
+  backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
   border-radius: 22px;
-  box-shadow: var(--glass-modal-shadow); width: 100%; max-width: 600px;
+  box-shadow: var(--glass-card-shadow); width: 100%; max-width: 600px;
   max-height: 70vh; display: flex; flex-direction: column; overflow: hidden;
 }
 .search-input-row {
@@ -3476,18 +3470,13 @@ img { max-width: 100%; display: block; }
 }
 
 /* ── Modal ───────────────────────────────────────────────── */
-/* v11.20.0：ユーザー指摘「モーダルの中のブロックは透けちゃダメだが、
-   一番背景のところは割と透けるようにしてほしい」への対応。従来は暗転が
-   黒62%とかなり濃く、.modal自身をglass-panel化（v11.19.0）しても、
-   透けて見える先が「濃い黒の潰れた背景」でしかなくToDoのような明るい
-   ガラス感が出ていなかった。暗転を弱めつつぼかしを加えることで、
-   .modalの半透明部分から実際のページ（ぼかされた明るいグラデーション等）
-   がきちんと透けて見えるようにした。 */
+/* v11.20.3：v11.20.0でモーダル背景を透けさせるためにこの暗転幕を薄く＋
+   ぼかし付きにしたが、モーダル自体の透明化を全面撤回した（ユーザー：
+   「透けてない方が一つのブロックとしてわかりやすい」）ため、暗転幕も
+   元の濃い黒（.62）・ぼかし無しに戻した。 */
 .modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(15, 23, 42, .32);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0,0,0,.62);
   z-index: 500;
   display: flex;
   align-items: center;
@@ -3529,14 +3518,14 @@ img { max-width: 100%; display: block; }
    意図的な選択（ユーザーが求めていた「背景の透け感」はこちらの方が近い）。
    角丸もvar(--radius-lg)=14pxから、ToDoの列と同じ22pxに拡大。 */
 .modal {
-  background: var(--glass-modal-bg);
-  backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
-  border: 1px solid var(--glass-modal-border);
+  background: var(--glass-card-bg);
+  backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  border: 1px solid var(--glass-card-border);
   border-radius: 22px;
   width: 100%;
   max-width: 920px;
-  box-shadow: var(--glass-modal-shadow);
+  box-shadow: var(--glass-card-shadow);
   display: flex;
   flex-direction: column;
   max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
@@ -3562,16 +3551,15 @@ img { max-width: 100%; display: block; }
 @keyframes lessonModalIn  { from { opacity: 0; transform: translateY(54px) scale(.85); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
 @keyframes lessonModalOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(40px) scale(.9); } }
 .lm-close { position: absolute; top: 12px; right: 12px; z-index: 5; }
-/* v11.20.2：ユーザー指摘「閉じる/ごみ箱のバーしか薄くなっていない。上の部分も
-   グラデーションじゃなくこの透け感に統一してほしい」への対応。従来は
-   .lesson-modal-body自身が不透明のradial-gradient+var(--bg-subtle)を持って
-   おり、.modalを--glass-modal-*化しても、その上に重なるこの不透明レイヤーが
-   邪魔をして「授業モーダルの上部（2カラム部分）」だけ透け感が出ていなかった。
-   .modal本体の透けたガラス面がそのまま見えるよう、この不透明背景を撤去
-   （padding/gapのレイアウトは維持）。 */
+/* v11.20.3：v11.20.2で.modalの透け感を活かすため撤去していたが、モーダルの
+   透明化自体を全面撤回したため、元の不透明背景（2カラムの土台となる淡い
+   グラデーション面）を復元。 */
 .lesson-modal-body {
   flex: 1; display: flex; gap: 16px; min-height: 0;
   padding: 16px;
+  background:
+    radial-gradient(700px 320px at 0% 0%, color-mix(in srgb, var(--brand) 9%, transparent), transparent),
+    var(--bg-subtle);
 }
 .lm-col {
   display: flex; flex-direction: column;
@@ -5057,11 +5045,11 @@ img { max-width: 100%; display: block; }
 .hw-picker-overlay[hidden] { display: none; }
 /* v11.19.0：.modalと同じ理由でglass-panel化＋角丸22pxに統一（ToDo基準）。 */
 .hw-picker-card {
-  width: 100%; max-width: 320px; background: var(--glass-modal-bg); color: var(--text);
-  border: 1px solid var(--glass-modal-border);
-  backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
-  border-radius: 22px; padding: 18px; box-shadow: var(--glass-modal-shadow);
+  width: 100%; max-width: 320px; background: var(--glass-card-bg); color: var(--text);
+  border: 1px solid var(--glass-card-border);
+  backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  border-radius: 22px; padding: 18px; box-shadow: var(--glass-card-shadow);
 }
 .hw-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .hw-picker-title { font-size: 15px; font-weight: 700; }

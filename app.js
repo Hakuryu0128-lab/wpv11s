@@ -394,6 +394,16 @@
    見えるようにした。中の.lm-col（教科・学級等の入力カラムとノートカラム）は
    従来通り--glass-panel-bgの不透明寄りカードのままなので、指摘の通り
    カード自体の中身は透けさせていない。
+   v11.20.3：ユーザーから「個人的には透けてない方が一つのブロックとして
+   わかりやすい」と率直な感想があり、v11.19.0〜v11.20.2で進めてきたモーダル
+   系（.modal・.move-picker・.search-box・.hw-picker-card）の透明化を全面
+   撤回。背景を--glass-modal-*（34%不透明・強ぼかし）から元の--glass-card-*
+   （86%不透明寄り・ぼかし控えめ）に戻し、.modal-backdropの暗転も薄め＋
+   ぼかし付き（v11.20.0）から元の濃い黒（rgba(0,0,0,.62)）・ぼかし無しに、
+   .lesson-modal-bodyの背景も撤去前（radial-gradient＋var(--bg-subtle)）に
+   復元した。一方で「角丸は良くなった」という評価は維持されていたため、
+   border-radius 22px（ToDo基準）はそのまま残している。不要になった
+   --glass-modal-*トークン定義は削除。app.js側の変更なし（CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -401,7 +411,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.20.2';
+const APP_VERSION = '11.20.3';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
