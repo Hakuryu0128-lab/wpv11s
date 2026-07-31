@@ -475,6 +475,23 @@
    呼ぶよう分岐し、説明文(small#backupBtnDesc)もチェック状態に応じて
    書き換える。exportJson()/exportFullBackup()自体のロジック・出力形式は
    変更なし（呼び出しの入口をまとめただけ）。
+   v11.22.1：バックアップUI統合（v11.22.0）を見た直後のユーザーから
+   「いいかんじ。あと画面全体をガラスモーフィズム的に美しく整えて。ボタンは
+   ボタんと分かりやすく。説明が多すぎるから使い方だけにして」との追加
+   要望。旧.import-options/.import-card（薄枠のカード2枚、v10時代からの
+   見た目）を撤去し、ToDo基準の1枚のガラスパネル(.backup-panel、
+   --glass-panel-*・角丸22px)にまとめた。ボタンは.backup-btnとして
+   新設し、バックアップ＝塗りつぶし＋浮遊影の主ボタン(.backup-btn--primary)、
+   復元＝ガラス縁取りの副ボタン(.backup-btn--secondary)という明確な強弱を
+   つけて「押せる場所」だと一目でわかるようにした。アイコンも色付き
+   バッジ風から、設定ナビ等と同じ単色line-art SVGに統一。説明文は、
+   意図（端末内保存）と使い方（定期的にバックアップ・復元で戻す）を
+   1文にまとめた1行のみとし、v10のlocalStorage上限やIndexedDBの仕組みに
+   関する技術的な説明段落は削除。保存容量メーターも見出し(h3)と技術的な
+   注意書きの段落を外し、メーター本体だけを残した。チェック状態に応じて
+   説明文を書き換えていたsmall#backupBtnDescは、ボタン自体の説明文を
+   撤去したのに伴い不要になったため、そのイベントリスナーごと削除
+   （チェックボックスの静的なラベルのみで用途は伝わる）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -482,7 +499,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.22.0';
+const APP_VERSION = '11.22.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -8564,13 +8581,7 @@ function bindEvents() {
      ボタンとして対等に並べるのをやめ、1つの「バックアップ」ボタン＋
      その場でON/OFFできる「写真を含めない（軽量）」チェックボックスに
      統合。チェック時はexportJson()（テキストのみ・従来のexportJsonBtn相当）、
-     未チェック時はexportFullBackup()を呼ぶ。説明文(small)もチェックの
-     状態に合わせて書き換える。 */
-  q('backupLiteToggle')?.addEventListener('change', e => {
-    const lite = e.target.checked;
-    const desc = q('backupBtnDesc');
-    if (desc) desc.textContent = lite ? '写真を含めず、テキストのみを書き出し（軽量）' : '写真も含めて全部を書き出し';
-  });
+     未チェック時はexportFullBackup()を呼ぶ。 */
   q('fullBackupBtn')?.addEventListener('click', () => {
     if (q('backupLiteToggle')?.checked) exportJson(); else exportFullBackup();
   });

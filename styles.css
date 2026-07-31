@@ -2941,35 +2941,52 @@ img { max-width: 100%; display: block; }
 .search-result-label { font-size: 14px; font-weight: 600; color: var(--gray-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-result-sub { font-size: 12px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* ── Import / Print ──────────────────────────────────────── */
-.import-options {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+/* ── バックアップ画面 ─────────────────────────────────────
+   v11.22.1：ユーザー要望「画面全体をガラスモーフィズム的に美しく、ボタンは
+   ボタンと分かりやすく、説明は使い方だけでいい」への対応。ページ全体を
+   .backup-panelという1枚のToDo基準ガラスパネル（--glass-panel-*・角丸22px）
+   にまとめ、中の説明文は用途が伝わる1文だけに削減。旧.import-options/
+   .import-card（薄枠のカード2枚）は撤去し、押せることが一目でわかる
+   .backup-btn（塗りつぶしの主ボタン／ガラス縁取りの副ボタン）に置き換えた。 */
+.backup-panel {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 28px 26px;
+  border-radius: 22px;
+  background: var(--glass-panel-bg);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border: 1px solid var(--glass-panel-border);
+  box-shadow: var(--glass-panel-shadow);
 }
-.import-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 20px;
-  border-radius: var(--radius-lg);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  transition: box-shadow var(--fast), border-color var(--fast);
-  text-align: left;
-  width: 100%;
+.backup-actions { display: flex; flex-direction: column; gap: 16px; margin-top: 4px; }
+.backup-action-wrap { display: flex; flex-direction: column; gap: 10px; }
+.backup-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 15px 20px;
+  border-radius: 16px;
+  font-size: 15.5px; font-weight: 700;
+  transition: transform var(--fast), box-shadow var(--fast), filter var(--fast), border-color var(--fast);
 }
-.import-card:hover { box-shadow: var(--shadow); border-color: var(--gray-300); }
-.import-icon { width: 32px; height: 32px; }
-.import-card span { font-size: 14px; font-weight: 600; color: var(--gray-800); }
-.import-card small { font-size: 12px; color: var(--gray-500); }
+.backup-btn:active { transform: scale(.97); }
+.backup-btn-icon { width: 19px; height: 19px; flex-shrink: 0; }
+/* 主ボタン＝バックアップ。塗りつぶし＋浮遊影で「押せる」ことを強調 */
+.backup-btn--primary {
+  background: var(--brand); color: #fff;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--brand) 35%, transparent);
+}
+.backup-btn--primary:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 14px 30px color-mix(in srgb, var(--brand) 42%, transparent); }
+/* 副ボタン＝復元。ガラス縁取りで主ボタンより控えめに */
+.backup-btn--secondary {
+  background: var(--glass-nested-bg);
+  border: 1px solid var(--glass-nested-border);
+  color: var(--text);
+  box-shadow: var(--glass-nested-shadow);
+}
+.backup-btn--secondary:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-1px); box-shadow: var(--glass-nested-shadow-hover); }
 
 /* v11.22.0：完全バックアップ＝基本のバックアップ、テキストのみ＝その場で
-   ON/OFFする軽量モード、という主従関係を示すための小さなチェックボックス。
-   カードのすぐ下に添えることで「別のバックアップ」ではなく「同じ
-   バックアップのオプション」であることが伝わるようにした。 */
-.backup-card-wrap { display: flex; flex-direction: column; gap: 10px; }
+   ON/OFFする軽量モード、という主従関係を示すための小さなチェックボックス。 */
 .backup-lite-check {
   display: flex; align-items: center; gap: 8px;
   padding: 0 4px;
@@ -4107,7 +4124,6 @@ img { max-width: 100%; display: block; }
   .tile-subject { font-size: 9px; }
   .tile-title { font-size: 11px; }
   .view-page { padding: 12px; }
-  .import-options { grid-template-columns: 1fr; }
 }
 
 /* ── Touch adjustments ── */
@@ -5067,9 +5083,10 @@ img { max-width: 100%; display: block; }
 .about-legal-text { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 2px 0; }
 
 /* 保存容量メーター */
-.backup-storage { margin: 22px auto 0; max-width: 520px; }
-.backup-storage-title { font-size: 15px; font-weight: 800; color: var(--text); margin: 0 0 10px; }
-.backup-storage .storage-meter { margin: 0 0 14px; }
+/* v11.22.1：見出し(h3)と技術的な説明文を撤去し、メーターだけのシンプルな
+   構成に。.backup-panel内なので上に区切り線を1本添えるだけで十分。 */
+.backup-storage { margin: 22px 0 0; padding-top: 20px; border-top: 1px solid var(--border); }
+.backup-storage .storage-meter { margin: 0; max-width: none; }
 .storage-meter { margin: 6px auto 18px; max-width: 520px; }
 .storage-meter-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
 .storage-meter-head > span:last-child { font-weight: 700; color: var(--text); white-space: nowrap; }
