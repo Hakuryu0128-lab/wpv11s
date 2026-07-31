@@ -339,6 +339,20 @@
    新設の.settings-nav-icon（18×18px）で統一サイズにした。設定の各
    セクション見出し（h3）は元々絵文字を使っておらずプレーンテキストの
    ままだったので変更なし。app.js側の変更なし（HTML/CSSのみ）。
+   v11.19.0：①設定＞外観のライト/ダーク/自動トグルに残っていた絵文字
+   （☀️🌙🔄）も、設定ナビと同じ考え方で単色line-art SVGに置き換え
+   （.appearance-emojiを廃止し.appearance-iconを新設）。②ユーザーから
+   「ToDo画面を基準にモーダルの角丸・背景の透け感を揃えてほしい」と
+   指摘を受け、アプリ共通のモーダル/ポップアップカード4種（.modal・
+   .move-picker・.search-box・.hw-picker-card）を、v11.14.0で採用した
+   --glass-card-*（不透明寄り・自身にはぼかしを付けない設計）から
+   --glass-panel-*（ToDoの列.todo-colと同じ透け方＋自身にもblur/saturateを
+   付ける設計）に変更。#dialogBackdrop等の外側オーバーレイが既にページを
+   ぼかしているため二重ぼかしにはなるが、iOS標準シートのように「暗転した
+   背景越しに、さらに固有のガラス質感を持つ前面カード」という見え方を狙った
+   意図的な選択。角丸もvar(--radius-lg)=14pxから、ToDoの列と同じ22pxに
+   拡大し、小さめのカード（.hw-picker-card等）を含め全モーダル系で統一した。
+   app.js側の変更なし（HTML/CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -346,7 +360,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.18.0';
+const APP_VERSION = '11.19.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

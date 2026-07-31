@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.18.0" />
+  <link rel="stylesheet" href="styles.css?v=11.19.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -751,9 +751,26 @@
                 <h3>外観</h3>
                 <p class="settings-hint">明るさを選べます。「自動」は端末（iPad）のダークモード設定に合わせて切り替わります。</p>
                 <div class="appearance-seg" id="appearanceSeg" role="radiogroup" aria-label="外観モード">
-                  <button class="appearance-opt" data-appearance="light" role="radio"><span class="appearance-emoji">☀️</span>ライト</button>
-                  <button class="appearance-opt" data-appearance="dark" role="radio"><span class="appearance-emoji">🌙</span>ダーク</button>
-                  <button class="appearance-opt" data-appearance="auto" role="radio"><span class="appearance-emoji">🔄</span>自動</button>
+                  <button class="appearance-opt" data-appearance="light" role="radio">
+                    <svg class="appearance-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <circle cx="10" cy="10" r="3.6" stroke="currentColor" stroke-width="1.6"/>
+                      <path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4M15.3 15.3l-1.4-1.4M6.1 6.1L4.7 4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
+                    ライト
+                  </button>
+                  <button class="appearance-opt" data-appearance="dark" role="radio">
+                    <svg class="appearance-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M16.5 12.4A6.8 6.8 0 017.6 3.5a7 7 0 108.9 8.9z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                    </svg>
+                    ダーク
+                  </button>
+                  <button class="appearance-opt" data-appearance="auto" role="radio">
+                    <svg class="appearance-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M16 6.5a6 6 0 00-10.5-2.3M4 5v-2m0 2h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M4 13.5a6 6 0 0010.5 2.3M16 15v2m0-2h-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    自動
+                  </button>
                 </div>
                 <h3 style="margin-top:24px">カラーテーマ</h3>
                 <p class="settings-hint">アクセント色です。明るさ（ライト／ダーク）とは別に選べます。</p>
@@ -1372,6 +1389,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.18.0"></script>
+<script src="app.js?v=11.19.0"></script>
 </body>
 </html>

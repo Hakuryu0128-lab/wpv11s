@@ -2810,10 +2810,13 @@ img { max-width: 100%; display: block; }
   display: flex; align-items: center; justify-content: center;
   padding: 16px; backdrop-filter: blur(3px);
 }
+/* v11.19.0：.modalと同じ理由でglass-panel化＋角丸22pxに統一（ToDo基準）。 */
 .move-picker {
-  background: var(--glass-card-bg); border: 1px solid var(--glass-card-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--glass-card-shadow); width: 100%; max-width: 520px;
+  background: var(--glass-panel-bg); border: 1px solid var(--glass-panel-border);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border-radius: 22px;
+  box-shadow: var(--glass-panel-shadow); width: 100%; max-width: 520px;
   padding: 16px; max-height: 90vh; overflow: auto;
 }
 .move-picker-head {
@@ -2844,10 +2847,13 @@ img { max-width: 100%; display: block; }
   display: flex; align-items: flex-start; justify-content: center;
   padding: 64px 16px 16px; backdrop-filter: blur(3px);
 }
+/* v11.19.0：.modalと同じ理由でglass-panel化＋角丸22pxに統一（ToDo基準）。 */
 .search-box {
-  background: var(--glass-card-bg); border: 1px solid var(--glass-card-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--glass-card-shadow); width: 100%; max-width: 600px;
+  background: var(--glass-panel-bg); border: 1px solid var(--glass-panel-border);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border-radius: 22px;
+  box-shadow: var(--glass-panel-shadow); width: 100%; max-width: 600px;
   max-height: 70vh; display: flex; flex-direction: column; overflow: hidden;
 }
 .search-input-row {
@@ -3492,18 +3498,23 @@ img { max-width: 100%; display: block; }
 @keyframes modalPopIn  { from { transform: translateY(14px) scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes modalPopOut { from { transform: none; opacity: 1; } to { transform: translateY(10px) scale(.96); opacity: 0; } }
 
-/* v11.14.0：デザイン統一Phase2。モーダル本体は不透明background: var(--bg)
-   だったのを--glass-card-*（背景・縁・影）に統一。#dialogBackdropが既に
-   ページ側をblur(4px)しているため、モーダル自身にはbackdrop-filterを
-   付けない（glass-nestedと同じ「親が既にぼかしているので自身は付けない」
-   考え方＝二重ぼかしを避ける）。 */
+/* v11.19.0：ユーザーから「ToDo画面を基準にモーダルの角丸・透け感を揃えて
+   ほしい」と指摘を受け、v11.14.0で入れたglass-card（不透明寄り・自身は
+   ぼかし無し）から--glass-panel-*（ToDoの列.todo-colと同じ透け方＋自身も
+   blur/saturate）に変更。#dialogBackdropが既にページ側をblur(4px)して
+   いるので二重にぼかす形になるが、iOS標準シートのように「暗転した背景
+   越しにさらに固有のガラス質感を持つ前面カード」という見え方を狙った
+   意図的な選択（ユーザーが求めていた「背景の透け感」はこちらの方が近い）。
+   角丸もvar(--radius-lg)=14pxから、ToDoの列と同じ22pxに拡大。 */
 .modal {
-  background: var(--glass-card-bg);
-  border: 1px solid var(--glass-card-border);
-  border-radius: var(--radius-lg);
+  background: var(--glass-panel-bg);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border: 1px solid var(--glass-panel-border);
+  border-radius: 22px;
   width: 100%;
   max-width: 920px;
-  box-shadow: var(--glass-card-shadow);
+  box-shadow: var(--glass-panel-shadow);
   display: flex;
   flex-direction: column;
   max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
@@ -4131,7 +4142,9 @@ img { max-width: 100%; display: block; }
   color: var(--gray-600);
   transition: background var(--fast), color var(--fast), box-shadow var(--fast);
 }
-.appearance-opt .appearance-emoji { font-size: 15px; }
+/* v11.19.0：絵文字(☀️🌙🔄)をサイドバー/設定ナビと同じ単色line-art SVGに
+   統一（.appearance-emojiは廃止、.appearance-iconに置き換え）。 */
+.appearance-icon { width: 16px; height: 16px; flex-shrink: 0; }
 .appearance-opt.active {
   background: var(--bg);
   color: var(--brand);
@@ -5016,10 +5029,13 @@ img { max-width: 100%; display: block; }
   padding: 20px;
 }
 .hw-picker-overlay[hidden] { display: none; }
+/* v11.19.0：.modalと同じ理由でglass-panel化＋角丸22pxに統一（ToDo基準）。 */
 .hw-picker-card {
-  width: 100%; max-width: 320px; background: var(--glass-card-bg); color: var(--text);
-  border: 1px solid var(--glass-card-border);
-  border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--glass-card-shadow);
+  width: 100%; max-width: 320px; background: var(--glass-panel-bg); color: var(--text);
+  border: 1px solid var(--glass-panel-border);
+  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  border-radius: 22px; padding: 18px; box-shadow: var(--glass-panel-shadow);
 }
 .hw-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .hw-picker-title { font-size: 15px; font-weight: 700; }
