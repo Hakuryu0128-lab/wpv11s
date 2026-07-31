@@ -404,6 +404,30 @@
    復元した。一方で「角丸は良くなった」という評価は維持されていたため、
    border-radius 22px（ToDo基準）はそのまま残している。不要になった
    --glass-modal-*トークン定義は削除。app.js側の変更なし（CSSのみ）。
+   v11.21.0：アニメーション追加の第一弾。
+   ①検索：「検索窓が急に現れて見える。検索ボタンから、ふわっと大げさに
+   拡大されて出てくるエフェクトがほしい」との要望。openSearch()で
+   ヘッダーの検索ボタンの画面上の中心座標を取得し、.search-boxの
+   transform-originにそのままセット。CSS側に@keyframes searchBoxPop
+   （0.05倍→1.08倍→0.94倍→1.03倍→1倍、と大きくオーバーシュートして
+   跳ね返る）を追加し、ボタンの位置から生えてくるような拡大ポップに
+   した。.search-overlay（背景の暗転）にも短いfadeInを追加。
+   ②写真ビューア：「1枚を大きく開いて横スライドする時に何のエフェクトも
+   ない。iPadの写真アプリのようにスムーズに次の写真へスライドしたい」
+   との要望。openPhotoViewer()の実装を、<img>1枚のsrcを即差し替える
+   方式から、.pv-slide-viewport（枠・overflow:hidden）の中に新旧2枚の
+   <img class="pv-slide-img">を並べてtranslateXさせる方式に変更。
+   ボタン/矢印キー/スワイプでの前後移動時のみ方向付きスライド
+   （新しい写真は移動方向側から入り、古い写真は逆方向へ抜けつつ
+   フェードアウト）を行い、サムネイルクリックや初回表示は従来通り
+   即時切り替え。移動量はJSでviewportの実測幅(px)を使うため、画像自身の
+   表示サイズに関わらず必ず画面外まで送り出せる。
+   ③設定＞テーマの並び順を「色相順（虹色）にしてほしい」との要望。
+   THEME_COLORSの各色をHSLに変換し、色相(H)の昇順でTHEMES配列を並べ替え
+   （赤→橙→黄→緑→青緑→青→紺/紫→ピンク、という一周に近い並び）。
+   renderThemeGrid()はTHEMESをそのままforEachしているだけなので、配列の
+   並びを変えるだけでUI上の並びもそのまま反映される。id/name/
+   THEME_COLORSの中身自体は変更なし。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -411,7 +435,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.20.3';
+const APP_VERSION = '11.21.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -446,28 +470,34 @@ const WC = {
   95: ['⛈','雷雨'],  96: ['⛈','雷雨+霰'],   99: ['⛈','激しい雷雨'],
 };
 
-/* 20 themes */
+/* 20 themes
+   v11.21.0：ユーザー要望「テーマカラーの並び順を虹色というか色相順に
+   並べ替えてほしい」への対応。THEME_COLORSの各16進カラーをHSLに変換し、
+   色相(H)の昇順（赤→橙→黄→緑→青緑→青→紺/紫→ピンク→赤に近い薔薇色）で
+   並べ替えた。render側（renderThemeGrid）はこの配列をそのままforEachで
+   描画しているだけなので、ここの並び順を変えるだけでUI上の並びも
+   そのまま虹色順になる。id/name/THEME_COLORSの中身自体は変更なし。 */
 const THEMES = [
-  { id: 'indigo',      name: 'インディゴ' },
-  { id: 'navy',        name: 'ネイビー'   },
+  { id: 'strawberry',  name: 'ストロベリー'},
+  { id: 'sunset',      name: 'サンセット' },
+  { id: 'chocolate',   name: 'チョコレート'},
+  { id: 'cafe',        name: 'カフェ'     },
+  { id: 'peach',       name: 'ピーチ'     },
+  { id: 'caramel',     name: 'キャラメル' },
+  { id: 'lemon',       name: 'レモン'     },
+  { id: 'olive',       name: 'オリーブ'   },
   { id: 'board',       name: 'ボード'     },
   { id: 'mint',        name: 'ミント'     },
-  { id: 'sky',         name: 'スカイ'     },
-  { id: 'lavender',    name: 'ラベンダー' },
-  { id: 'rose',        name: 'ローズ'     },
-  { id: 'cafe',        name: 'カフェ'     },
-  { id: 'sunset',      name: 'サンセット' },
-  { id: 'olive',       name: 'オリーブ'   },
-  { id: 'slate',       name: 'スレート'   },
-  { id: 'soda',        name: 'ソーダ'     },
   { id: 'ramune',      name: 'ラムネ'     },
-  { id: 'cotton',      name: 'コットン'   },
-  { id: 'strawberry',  name: 'ストロベリー'},
-  { id: 'lemon',       name: 'レモン'     },
-  { id: 'chocolate',   name: 'チョコレート'},
-  { id: 'caramel',     name: 'キャラメル' },
+  { id: 'sky',         name: 'スカイ'     },
+  { id: 'soda',        name: 'ソーダ'     },
+  { id: 'navy',        name: 'ネイビー'   },
+  { id: 'slate',       name: 'スレート'   },
+  { id: 'indigo',      name: 'インディゴ' },
   { id: 'midnight',    name: 'ミッドナイト'},
-  { id: 'peach',       name: 'ピーチ'     },
+  { id: 'lavender',    name: 'ラベンダー' },
+  { id: 'cotton',      name: 'コットン'   },
+  { id: 'rose',        name: 'ローズ'     },
 ];
 
 /* Swatch preview colors for theme grid */
@@ -2298,6 +2328,13 @@ async function moveLessonTo(newKey, occupied, overlay) {
 function openSearch() {
   let overlay = document.getElementById('searchOverlay');
   if (overlay) { overlay.querySelector('#searchInput').focus(); return; }
+  // v11.21.0：ユーザー要望「検索窓がいきなり現れるように見える。検索ボタン
+  // から拡大されて出てくる、大げさなくらいのふわっとしたエフェクトが
+  // ほしい」への対応。アニメーション開始前にヘッダーの検索ボタンの画面上の
+  // 中心座標を取得しておき、.search-boxのtransform-originにそのままセット
+  // することで、「ボタンの位置から生えてくる」ような拡大アニメーションを
+  // 実現する（実アニメーション自体はCSSの@keyframes searchBoxPopで定義）。
+  const searchBtnRect = document.getElementById('searchBtn')?.getBoundingClientRect() || null;
   overlay = document.createElement('div');
   overlay.id = 'searchOverlay';
   overlay.className = 'search-overlay';
@@ -2313,6 +2350,13 @@ function openSearch() {
       <div class="search-results" id="searchResults"></div>
     </div>`;
   document.body.appendChild(overlay);
+  const box = overlay.querySelector('.search-box');
+  if (searchBtnRect) {
+    const boxRect = box.getBoundingClientRect();
+    const originX = (searchBtnRect.left + searchBtnRect.width / 2) - boxRect.left;
+    const originY = (searchBtnRect.top + searchBtnRect.height / 2) - boxRect.top;
+    box.style.transformOrigin = `${originX}px ${originY}px`;
+  }
   const input = overlay.querySelector('#searchInput');
   input.addEventListener('input', () => runSearch(input.value, overlay));
   overlay.querySelector('#searchClose').addEventListener('click', () => overlay.remove());
@@ -2755,17 +2799,49 @@ function openPhotoViewer(items, index, maybeLessonKey) {
     </div>
     <div class="photo-viewer-stage">
       <button class="pv-nav pv-prev" aria-label="前の写真">‹</button>
-      <img alt="写真" />
+      <div class="pv-slide-viewport"></div>
       <button class="pv-nav pv-next" aria-label="次の写真">›</button>
     </div>
     <div class="photo-viewer-thumbs"></div>`;
   document.body.appendChild(ov);
 
-  const imgEl   = ov.querySelector('img');
+  const viewport = ov.querySelector('.pv-slide-viewport');
+  let curImgEl = null; // v11.21.0：スライド演出用に現在表示中の<img>を保持
   const thumbsEl = ov.querySelector('.photo-viewer-thumbs');
   const openSlot = ov.querySelector('.pv-open-slot');
   const prevBtn = ov.querySelector('.pv-prev');
   const nextBtn = ov.querySelector('.pv-next');
+
+  // v11.21.0：iPadの写真アプリのような横スライド切り替え。dirが+1/-1の
+  // ときだけ方向付きスライドを行い（ボタン/矢印キー/スワイプでの前後移動）、
+  // サムネイルクリックや初回表示（dir省略）は従来通り即時切り替え。
+  function renderImage(idx, dir) {
+    const newImg = document.createElement('img');
+    newImg.alt = '写真';
+    newImg.className = 'pv-slide-img';
+    setPhotoSrc(newImg, items[idx].photo);
+
+    if (dir && curImgEl) {
+      const vw = viewport.clientWidth || viewport.offsetWidth || 0;
+      newImg.style.transform = `translateX(${dir > 0 ? vw : -vw}px)`;
+      viewport.appendChild(newImg);
+      const oldImg = curImgEl;
+      void newImg.offsetWidth; // force reflow so the transition below actually animates
+      requestAnimationFrame(() => {
+        newImg.style.transform = 'translateX(0)';
+        oldImg.style.transform = `translateX(${dir > 0 ? -vw : vw}px)`;
+        oldImg.style.opacity = '0';
+      });
+      const cleanup = () => oldImg.remove();
+      oldImg.addEventListener('transitionend', cleanup, { once: true });
+      setTimeout(cleanup, 500); // フォールバック（transitionendが発火しない環境向け）
+    } else {
+      viewport.innerHTML = '';
+      newImg.style.transform = 'translateX(0)';
+      viewport.appendChild(newImg);
+    }
+    curImgEl = newImg;
+  }
 
   // build thumbnail strip (hidden when only one photo)
   if (items.length > 1) {
@@ -2781,9 +2857,11 @@ function openPhotoViewer(items, index, maybeLessonKey) {
     thumbsEl.style.display = 'none';
   }
 
-  function show(i) {
-    cur = (i + items.length) % items.length;
-    setPhotoSrc(imgEl, items[cur].photo);
+  function show(i, dir) {
+    const idx = (i + items.length) % items.length;
+    if (idx === cur && curImgEl) return; // 同じ写真への再遷移は無視（スライドの誤発火防止）
+    cur = idx;
+    renderImage(cur, dir);
     const single = items.length <= 1;
     prevBtn.style.display = single ? 'none' : '';
     nextBtn.style.display = single ? 'none' : '';
@@ -2811,8 +2889,8 @@ function openPhotoViewer(items, index, maybeLessonKey) {
 
   const close = () => { document.removeEventListener('keydown', ov._keyHandler); ov.remove(); };
   ov.querySelector('.pv-close').addEventListener('click', close);
-  prevBtn.addEventListener('click', () => show(cur - 1));
-  nextBtn.addEventListener('click', () => show(cur + 1));
+  prevBtn.addEventListener('click', () => show(cur - 1, -1));
+  nextBtn.addEventListener('click', () => show(cur + 1, 1));
   ov.addEventListener('click', e => {
     if (e.target === ov || e.target.classList.contains('photo-viewer-stage')) close();
   });
@@ -2824,12 +2902,12 @@ function openPhotoViewer(items, index, maybeLessonKey) {
   stage.addEventListener('pointerup', e => {
     if (sx === null) return;
     const dx = e.clientX - sx; sx = null;
-    if (Math.abs(dx) > 45) show(dx < 0 ? cur + 1 : cur - 1);
+    if (Math.abs(dx) > 45) show(dx < 0 ? cur + 1 : cur - 1, dx < 0 ? 1 : -1);
   });
   // keyboard arrows / escape
   ov._keyHandler = e => {
-    if (e.key === 'ArrowRight') show(cur + 1);
-    else if (e.key === 'ArrowLeft') show(cur - 1);
+    if (e.key === 'ArrowRight') show(cur + 1, 1);
+    else if (e.key === 'ArrowLeft') show(cur - 1, -1);
     else if (e.key === 'Escape') close();
   };
   document.addEventListener('keydown', ov._keyHandler);
