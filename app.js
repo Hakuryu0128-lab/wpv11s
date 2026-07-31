@@ -492,6 +492,17 @@
    説明文を書き換えていたsmall#backupBtnDescは、ボタン自体の説明文を
    撤去したのに伴い不要になったため、そのイベントリスナーごと削除
    （チェックボックスの静的なラベルのみで用途は伝わる）。
+   v11.22.2：「名簿タブ、生徒一人一人の枠と背景の色が近くてつながりが
+   見えない。学級のところみたいに影をつけてわかりやすくして」との指摘。
+   学級・学校の行(.rm-item)は--glass-nested-*トークンでborder・
+   background・box-shadowを持つのに対し、生徒の行(.rm-row)は
+   .filledの薄い背景色一枚のみでborderもbox-shadowも無く、親の
+   .rm-col--roster（半透明ガラスパネル）に対してほぼ埋没していたのが
+   原因。.rm-itemと同じ--glass-nested-border/-bg/-shadowを.rm-rowに
+   適用し、ホバー時のtranslateY(-1px)+shadow-hoverも揃えて、生徒の行も
+   1枚ずつ独立したカードとして見えるようにした。.filledは行全体を
+   ガラス地から--student色を7%だけ混ぜた背景にして「入力済み」がわずかに
+   分かるようにしつつ、枠・影は空欄行と共通にした。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -499,7 +510,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.22.1';
+const APP_VERSION = '11.22.2';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

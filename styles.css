@@ -2118,12 +2118,24 @@ img { max-width: 100%; display: block; }
   gap: 6px; padding: 6px 16px 16px;
   max-width: 680px;
 }
+/* v11.22.2：ユーザー指摘「生徒一人一人の枠と背景の色が近くてつながりが
+   見えない。学級のところ（.rm-item）みたいに影をつけてわかりやすくして
+   ほしい」への対応。従来の.rm-rowは背景が.rm-col--roster（既に半透明の
+   ガラスパネル）に対してほぼ同系色の薄い塗り一枚だけで、枠線も影も無く、
+   1行ずつの区切りが視覚的にほとんど無かった。.rm-item（学級・学校の行）と
+   同じ--glass-nested-*トークン（自身にはbackdrop-filterを付けない、
+   親が既にぼかし済みの入れ子カード）を適用し、生徒の行も1枚ずつ独立した
+   カードとして見えるようにした。 */
 .rm-row {
   display: flex; align-items: center; gap: 10px;
-  padding: 5px 10px; border-radius: 12px;
-  transition: background var(--fast);
+  padding: 6px 10px; border-radius: 14px;
+  border: 1px solid var(--glass-nested-border);
+  background: var(--glass-nested-bg);
+  box-shadow: var(--glass-nested-shadow);
+  transition: background var(--fast), border-color var(--fast), box-shadow var(--fast), transform var(--fast);
 }
-.rm-row.filled { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.rm-row:hover { box-shadow: var(--glass-nested-shadow-hover); transform: translateY(-1px); }
+.rm-row.filled { background: color-mix(in srgb, var(--student, var(--brand)) 7%, var(--glass-nested-bg)); }
 .rm-row-num {
   width: 28px; flex-shrink: 0; text-align: center;
   font-size: 12px; font-weight: 700; color: var(--gray-400);
