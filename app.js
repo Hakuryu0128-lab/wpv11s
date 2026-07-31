@@ -428,6 +428,22 @@
    renderThemeGrid()はTHEMESをそのままforEachしているだけなので、配列の
    並びを変えるだけでUI上の並びもそのまま反映される。id/name/
    THEME_COLORSの中身自体は変更なし。
+   v11.21.1：v11.21.0のフィードバック2件。
+   ①「跳ね返るのはやめてほしい。ビヨンビヨンしてる」との指摘を受け、
+   検索窓の@keyframes searchBoxPopからオーバーシュート（1.08倍→0.94倍→
+   1.03倍と行き過ぎて戻る動き）を撤去し、0.05倍→1倍まで一直線に拡大する
+   だけのシンプルな形に変更。イージングもcubic-bezier(.2,.85,.25,1)から
+   跳ねの無い滑らかな減速カーブcubic-bezier(.16,1,.3,1)に、尺も.6s→.5sに
+   調整。「検索ボタンから大きく拡大されて出てくる」という大げさな拡大感
+   自体は維持しつつ、弾力感だけを無くした。
+   ②「写真の×ボタンで消した時にもフェードアウトしてほしい」との要望。
+   従来はremoveGalleryPhoto()/removeLessonPhoto()が削除確定後すぐ全体
+   再描画していたため、消える瞬間に演出が無くパッと消えていた。新設の
+   fadeOutPhotoItem()ヘルパーで、実データを消す前に対象の.photo-itemへ
+   .photo-item-removing（CSS側でopacity:0・scale(.85)へtransition）を
+   付与し、transitionend（フォールバックのタイムアウト付き）を待って
+   から本来の削除処理へ進むようにした。写真ページ（galleryPhotos）・
+   授業モーダル内の写真（lessonPhotos）の両方に適用。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -435,7 +451,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.21.0';
+const APP_VERSION = '11.21.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -898,6 +914,23 @@ async function mediaAll() {
 function setPhotoSrc(imgEl, photo) {
   if (photo.src) { imgEl.src = photo.src; return; }        // legacy inline dataURL
   mediaGet(photo.id).then(d => { if (d) imgEl.src = d; });
+}
+
+/* v11.21.1：ユーザー要望「写真の×ボタンで消した時にもフェードアウトして
+   ほしい」への対応。削除確定後、実データを消して再描画する前にこの
+   ヘルパーで.photo-item-removing（CSS側でopacity:0・scale(.85)へ
+   transition）を再生し、演出が終わるのを待ってから呼び出し元の削除処理に
+   進んでもらう。transitionendが発火しない環境向けにフォールバックの
+   タイムアウトも用意。 */
+function fadeOutPhotoItem(el) {
+  return new Promise(resolve => {
+    if (!el) { resolve(); return; }
+    let done = false;
+    const finish = () => { if (done) return; done = true; resolve(); };
+    el.addEventListener('transitionend', finish, { once: true });
+    setTimeout(finish, 300);
+    el.classList.add('photo-item-removing');
+  });
 }
 
 /* ── State storage (IndexedDB) ───────────────────────────────
@@ -2760,13 +2793,14 @@ function renderModalPhotos() {
       openPhotoViewer(lessonPhotos.map(p => ({ photo: p, lessonKey: null })), i));
     item.querySelector('.photo-del').addEventListener('click', e => {
       e.stopPropagation();
-      window.removeLessonPhoto(i);
+      window.removeLessonPhoto(i, item);
     });
     grid.insertBefore(item, addBtn);
   });
 }
 
-window.removeLessonPhoto = function(i) {
+window.removeLessonPhoto = async function(i, itemEl) {
+  await fadeOutPhotoItem(itemEl);
   const p = lessonPhotos[i];
   if (p && !p.src) mediaDelete(p.id);
   lessonPhotos.splice(i, 1);
@@ -4006,7 +4040,7 @@ function renderPhotoGallery() {
     item.querySelector('img').addEventListener('click', () => openPhotoViewer(allItems, i));
     item.querySelector('.photo-del').addEventListener('click', e => {
       e.stopPropagation();
-      removeGalleryPhoto(photo.id, lessonKey);
+      removeGalleryPhoto(photo.id, lessonKey, item);
     });
     grid.insertBefore(item, addBtn);
   });
@@ -4030,8 +4064,9 @@ function galleryPhotos() {
   return out;
 }
 
-async function removeGalleryPhoto(id, lessonKey) {
+async function removeGalleryPhoto(id, lessonKey, itemEl) {
   if (!await customConfirm('この写真を削除しますか?')) return;
+  await fadeOutPhotoItem(itemEl);
   if (lessonKey && state.lessons[lessonKey]) {
     state.lessons[lessonKey].photos = (state.lessons[lessonKey].photos || []).filter(p => p.id !== id);
     mediaDelete(id);

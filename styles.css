@@ -1649,6 +1649,18 @@ img { max-width: 100%; display: block; }
   position: relative;
   background: var(--gray-100);
   cursor: pointer;
+  transition: opacity .24s ease, transform .24s ease;
+}
+/* v11.21.1：ユーザー要望「写真の×ボタンで消した時にもフェードアウトして
+   ほしい」への対応。従来はremoveGalleryPhoto()/removeLessonPhoto()が
+   データ削除→即座に全体再描画という流れで、消える瞬間に一切の演出が
+   無くパッと消えていた。削除確定後、実際にデータを消して再描画する前に
+   このクラスを付与し、フェードアウト＋少し縮む演出を再生してから
+   （transitionendを待って）本来の削除処理に進むようにした。 */
+.photo-item-removing {
+  opacity: 0;
+  transform: scale(.85);
+  pointer-events: none;
 }
 .photo-item img { width: 100%; height: 100%; object-fit: cover; }
 .photo-item-overlay {
@@ -2879,12 +2891,14 @@ img { max-width: 100%; display: block; }
    （openSearch()）でヘッダーの検索ボタンの座標に合わせて動的にセットして
    おり、このkeyframesはそこを起点に一気に拡大→少しオーバーシュートして
    跳ね返り→収束、という大きめのポップを描く。 */
+/* v11.21.1：ユーザー指摘「跳ね返るのはやめてほしい。ビヨンビヨンしてる」
+   への対応。オーバーシュート（1.08倍→0.94倍→1.03倍と行き過ぎて戻る動き）を
+   撤去し、0→1倍まで一直線に拡大するだけのシンプルな形に変更。「検索
+   ボタンから大きく拡大されて出てくる」という大げさな拡大感自体は
+   維持しつつ、跳ね返りの弾力感だけを無くした。 */
 @keyframes searchBoxPop {
   0%   { opacity: 0; transform: scale(.05); }
-  50%  { opacity: 1; transform: scale(1.08); }
-  72%  { opacity: 1; transform: scale(.94); }
-  88%  { transform: scale(1.03); }
-  100% { transform: scale(1); }
+  100% { opacity: 1; transform: scale(1); }
 }
 .search-box {
   background: var(--glass-card-bg); border: 1px solid var(--glass-card-border);
@@ -2893,7 +2907,7 @@ img { max-width: 100%; display: block; }
   border-radius: 22px;
   box-shadow: var(--glass-card-shadow); width: 100%; max-width: 600px;
   max-height: 70vh; display: flex; flex-direction: column; overflow: hidden;
-  animation: searchBoxPop .6s cubic-bezier(.2,.85,.25,1) both;
+  animation: searchBoxPop .5s cubic-bezier(.16,1,.3,1) both;
 }
 .search-input-row {
   display: flex; align-items: center; gap: 10px;
