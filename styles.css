@@ -3463,9 +3463,18 @@ img { max-width: 100%; display: block; }
 }
 
 /* ── Modal ───────────────────────────────────────────────── */
+/* v11.20.0：ユーザー指摘「モーダルの中のブロックは透けちゃダメだが、
+   一番背景のところは割と透けるようにしてほしい」への対応。従来は暗転が
+   黒62%とかなり濃く、.modal自身をglass-panel化（v11.19.0）しても、
+   透けて見える先が「濃い黒の潰れた背景」でしかなくToDoのような明るい
+   ガラス感が出ていなかった。暗転を弱めつつぼかしを加えることで、
+   .modalの半透明部分から実際のページ（ぼかされた明るいグラデーション等）
+   がきちんと透けて見えるようにした。 */
 .modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,.62);
+  background: rgba(15, 23, 42, .32);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 500;
   display: flex;
   align-items: center;

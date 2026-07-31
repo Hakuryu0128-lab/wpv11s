@@ -353,6 +353,23 @@
    意図的な選択。角丸もvar(--radius-lg)=14pxから、ToDoの列と同じ22pxに
    拡大し、小さめのカード（.hw-picker-card等）を含め全モーダル系で統一した。
    app.js側の変更なし（HTML/CSSのみ）。
+   v11.20.0：①ユーザーから「角丸は良くなったが背景の透け感がまだない。
+   モーダルの中のブロックは透けちゃダメだが、一番背景のところは割と
+   透けるようにしてほしい」と指摘。原因は.modal等11種の共通の暗転幕
+   .modal-backdropがbackground: rgba(0,0,0,.62)とかなり濃い黒だったため、
+   v11.19.0で.modalを--glass-panel-*（75%不透明＝25%透ける設計）に
+   変更しても、その透ける先が「潰れた黒」でしかなくToDo(.todo-col)の
+   ような明るいガラス感が出ていなかった。.modal-backdropの暗転を
+   rgba(15,23,42,.32)まで弱め、backdrop-filter: blur(6px)を共通で追加。
+   これによりモーダル自身の半透明部分から、ぼかされた明るいページが
+   実際に透けて見えるようになった（モーダル内部の各ブロックは元々
+   不透明のままで変更なし＝指摘通り中身は透けさせていない）。
+   ②検索ボックスを開いた直後、文字入力に一度タップが必要という報告。
+   原因はopenSearch()内のsetTimeout(() => input.focus(), 40)。遅延実行
+   によりクリック起因のuser gestureコンテキストが失われ、一部ブラウザ
+   （特にiOS Safari）でプログラムによるfocus()がキーボード起動まで
+   至らないことがあった。DOM挿入直後に同期的にinput.focus()するよう
+   変更し、開いた瞬間から入力できるようにした。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -360,7 +377,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.19.0';
+const APP_VERSION = '11.20.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -2267,7 +2284,11 @@ function openSearch() {
   overlay.querySelector('#searchClose').addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.addEventListener('keydown', function esc(e){ if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', esc); } });
-  setTimeout(() => input.focus(), 40);
+  // v11.20.0：setTimeoutでの遅延focus()はクリック由来のuser gestureが
+  // 失われてしまい、一部ブラウザ（特にiOS Safari）で「開いた直後は
+  // 一度タップしないと文字入力できない」不具合の原因になっていた。
+  // DOM挿入直後に同期的にfocus()することで確実にキーボードが起動する。
+  input.focus();
   runSearch('', overlay);
 }
 
