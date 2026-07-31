@@ -382,6 +382,18 @@
    各ブロック（フォーム欄・ボタン・リスト行等）はこのトークンを使っておらず
    個別に不透明のままなので、指摘通り中身は透けさせていない。
    --glass-panel-*自体は変更していないため、ToDo等の既存パネルには影響なし。
+   v11.20.2：「閉じる/ごみ箱のバーしか薄くなっていない。上の部分もグラデ
+   ーションじゃなくこの透け感に統一してほしい」との指摘。授業モーダル
+   （.modal--lesson）だけは内部に.lesson-modal-bodyという専用のラッパーが
+   あり、そこに不透明なradial-gradient＋var(--bg-subtle)の独自背景が
+   付いていたため、.modalをどれだけ透けるようにしても、その不透明レイヤーに
+   覆われた上部（2カラム部分）だけ透け感が反映されず、下のフッターバー
+   （.modal-footerは.modal本体の背景がそのまま見える）とだけ差が出ていた。
+   .lesson-modal-bodyの背景指定を撤去し、レイアウト（padding/gap）のみ残す
+   ことで、授業モーダルの上から下まで.modalの--glass-modal-*が一貫して
+   見えるようにした。中の.lm-col（教科・学級等の入力カラムとノートカラム）は
+   従来通り--glass-panel-bgの不透明寄りカードのままなので、指摘の通り
+   カード自体の中身は透けさせていない。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -389,7 +401,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.20.1';
+const APP_VERSION = '11.20.2';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

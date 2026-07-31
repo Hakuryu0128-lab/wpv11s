@@ -3562,12 +3562,16 @@ img { max-width: 100%; display: block; }
 @keyframes lessonModalIn  { from { opacity: 0; transform: translateY(54px) scale(.85); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
 @keyframes lessonModalOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(40px) scale(.9); } }
 .lm-close { position: absolute; top: 12px; right: 12px; z-index: 5; }
+/* v11.20.2：ユーザー指摘「閉じる/ごみ箱のバーしか薄くなっていない。上の部分も
+   グラデーションじゃなくこの透け感に統一してほしい」への対応。従来は
+   .lesson-modal-body自身が不透明のradial-gradient+var(--bg-subtle)を持って
+   おり、.modalを--glass-modal-*化しても、その上に重なるこの不透明レイヤーが
+   邪魔をして「授業モーダルの上部（2カラム部分）」だけ透け感が出ていなかった。
+   .modal本体の透けたガラス面がそのまま見えるよう、この不透明背景を撤去
+   （padding/gapのレイアウトは維持）。 */
 .lesson-modal-body {
   flex: 1; display: flex; gap: 16px; min-height: 0;
   padding: 16px;
-  background:
-    radial-gradient(700px 320px at 0% 0%, color-mix(in srgb, var(--brand) 9%, transparent), transparent),
-    var(--bg-subtle);
 }
 .lm-col {
   display: flex; flex-direction: column;
