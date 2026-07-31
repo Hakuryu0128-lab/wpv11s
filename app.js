@@ -370,6 +370,18 @@
    （特にiOS Safari）でプログラムによるfocus()がキーボード起動まで
    至らないことがあった。DOM挿入直後に同期的にinput.focus()するよう
    変更し、開いた瞬間から入力できるようにした。
+   v11.20.1：v11.20.0でも「まだ全然、背景がすっけすけなレベルにしてほしい」と
+   追加指摘。従来.modal等4種は共通の--glass-panel-*（75%不透明）をそのまま
+   使っていたが、これはToDoの列など「ページに直接浮く」パネル用の設計値で、
+   モーダル系は常に.modal-backdropという別の半透明レイヤーの上に重ねて表示
+   されるため、同じ不透明度では十分に透けて見えなかった。モーダル専用の
+   新トークン--glass-modal-*（34%不透明・blur28px・saturate1.8）を新設し、
+   .modal/.move-picker/.search-box/.hw-picker-cardの4種のみ差し替え。
+   backdrop側の既存blur(6px)と組み合わさることで文字は潰れず、大幅に
+   薄いすりガラス越しに向こうが透けて見える見た目になる。モーダル内部の
+   各ブロック（フォーム欄・ボタン・リスト行等）はこのトークンを使っておらず
+   個別に不透明のままなので、指摘通り中身は透けさせていない。
+   --glass-panel-*自体は変更していないため、ToDo等の既存パネルには影響なし。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -377,7 +389,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.20.0';
+const APP_VERSION = '11.20.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

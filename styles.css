@@ -106,6 +106,19 @@
   --glass-elevated-border:    color-mix(in srgb, #fff 45%, transparent);
   --glass-elevated-shadow:    0 14px 40px rgba(16,24,40,.20), inset 0 1px 0 rgba(255,255,255,.5);
 
+  /* v11.20.1：モーダル系（.modal/.move-picker/.search-box/.hw-picker-card）専用。
+     ユーザーから「もっと薄く、背景がすっけすけなレベルにしてほしい」との
+     追加要望。これらは常に.modal-backdrop（ぼかし済みの暗転レイヤー）の上に
+     乗るため、glass-panelよりさらに不透明度を下げても、backdrop側の
+     blur(6px)のおかげで文字は潰れず「すりガラス越しに向こうが透けて見える」
+     感じになる。中に入っているブロック（フォーム欄・ボタン・リスト行等）は
+     このトークンを使わず個別に不透明背景のままなので、指摘通り中身は透けない。 */
+  --glass-modal-blur:      28px;
+  --glass-modal-saturate:  1.8;
+  --glass-modal-bg:        color-mix(in srgb, var(--bg) 34%, transparent);
+  --glass-modal-border:    color-mix(in srgb, #fff 55%, transparent);
+  --glass-modal-shadow:    0 20px 50px rgba(16,24,40,.18), inset 0 1px 0 rgba(255,255,255,.6);
+
   /* Transitions */
   --ease:   cubic-bezier(.4,0,.2,1);
   --fast:   160ms;
@@ -2812,11 +2825,11 @@ img { max-width: 100%; display: block; }
 }
 /* v11.19.0：.modalと同じ理由でglass-panel化＋角丸22pxに統一（ToDo基準）。 */
 .move-picker {
-  background: var(--glass-panel-bg); border: 1px solid var(--glass-panel-border);
-  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  background: var(--glass-modal-bg); border: 1px solid var(--glass-modal-border);
+  backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
   border-radius: 22px;
-  box-shadow: var(--glass-panel-shadow); width: 100%; max-width: 520px;
+  box-shadow: var(--glass-modal-shadow); width: 100%; max-width: 520px;
   padding: 16px; max-height: 90vh; overflow: auto;
 }
 .move-picker-head {
@@ -2849,11 +2862,11 @@ img { max-width: 100%; display: block; }
 }
 /* v11.19.0：.modalと同じ理由でglass-panel化＋角丸22pxに統一（ToDo基準）。 */
 .search-box {
-  background: var(--glass-panel-bg); border: 1px solid var(--glass-panel-border);
-  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
+  background: var(--glass-modal-bg); border: 1px solid var(--glass-modal-border);
+  backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
   border-radius: 22px;
-  box-shadow: var(--glass-panel-shadow); width: 100%; max-width: 600px;
+  box-shadow: var(--glass-modal-shadow); width: 100%; max-width: 600px;
   max-height: 70vh; display: flex; flex-direction: column; overflow: hidden;
 }
 .search-input-row {
@@ -3516,14 +3529,14 @@ img { max-width: 100%; display: block; }
    意図的な選択（ユーザーが求めていた「背景の透け感」はこちらの方が近い）。
    角丸もvar(--radius-lg)=14pxから、ToDoの列と同じ22pxに拡大。 */
 .modal {
-  background: var(--glass-panel-bg);
-  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
-  border: 1px solid var(--glass-panel-border);
+  background: var(--glass-modal-bg);
+  backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
+  border: 1px solid var(--glass-modal-border);
   border-radius: 22px;
   width: 100%;
   max-width: 920px;
-  box-shadow: var(--glass-panel-shadow);
+  box-shadow: var(--glass-modal-shadow);
   display: flex;
   flex-direction: column;
   max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
@@ -5040,11 +5053,11 @@ img { max-width: 100%; display: block; }
 .hw-picker-overlay[hidden] { display: none; }
 /* v11.19.0：.modalと同じ理由でglass-panel化＋角丸22pxに統一（ToDo基準）。 */
 .hw-picker-card {
-  width: 100%; max-width: 320px; background: var(--glass-panel-bg); color: var(--text);
-  border: 1px solid var(--glass-panel-border);
-  backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-panel-blur)) saturate(var(--glass-panel-saturate));
-  border-radius: 22px; padding: 18px; box-shadow: var(--glass-panel-shadow);
+  width: 100%; max-width: 320px; background: var(--glass-modal-bg); color: var(--text);
+  border: 1px solid var(--glass-modal-border);
+  backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-modal-blur)) saturate(var(--glass-modal-saturate));
+  border-radius: 22px; padding: 18px; box-shadow: var(--glass-modal-shadow);
 }
 .hw-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .hw-picker-title { font-size: 15px; font-weight: 700; }
