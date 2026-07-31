@@ -503,6 +503,16 @@
    1枚ずつ独立したカードとして見えるようにした。.filledは行全体を
    ガラス地から--student色を7%だけ混ぜた背景にして「入力済み」がわずかに
    分かるようにしつつ、枠・影は空欄行と共通にした。
+   v11.22.3：上の対応を見た直後「学校のところも学級のところも、全体的に
+   もう少し影をはっきりつけて浮き出てる感を出して」との追加要望。
+   共通トークン--glass-nested-shadowはToDoカード(.todo-card)や付箋
+   (.note-item)、バックアップ画面の副ボタン等でも使われており、そちらは
+   今回指摘の対象外なので、共通トークン自体は変更せず、名簿の行
+   （.rm-item＝学校・学級、.rm-row＝生徒）専用の--rm-row-shadow /
+   --rm-row-shadow-hoverを新設して差し替えた。影を約2〜3倍濃く
+   （blur/broaden・不透明度アップ）し、ホバー時の浮き上がり量も
+   translateY(-1px)→-2pxに増やして、より明確な「浮いているカード」感を
+   出した。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -510,7 +520,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.22.2';
+const APP_VERSION = '11.22.3';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

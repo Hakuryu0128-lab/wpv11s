@@ -94,6 +94,13 @@
   --glass-nested-shadow:        0 2px 8px rgba(16,24,40,.05), inset 0 1px 0 rgba(255,255,255,.5);
   --glass-nested-shadow-hover:  0 6px 16px rgba(16,24,40,.10);
 
+  /* v11.22.3：名簿タブ（学校・学級・生徒の行）専用の、より強い浮き出し影。
+     ToDoカードや付箋(.note-item)など他の--glass-nested-*利用箇所は現状の
+     控えめな影のままにしたいので、共通トークンは変えずrm-item/rm-row限定の
+     トークンを新設した。 */
+  --rm-row-shadow:        0 6px 18px rgba(16,24,40,.16), inset 0 1px 0 rgba(255,255,255,.55);
+  --rm-row-shadow-hover:  0 12px 28px rgba(16,24,40,.22), inset 0 1px 0 rgba(255,255,255,.6);
+
   --glass-control-blur:     14px;
   --glass-control-saturate: 1.8;
   --glass-control-bg:       color-mix(in srgb, var(--bg) 42%, transparent);
@@ -2059,10 +2066,10 @@ img { max-width: 100%; display: block; }
   border-radius: 14px; overflow: hidden;
   border: 1px solid var(--glass-nested-border);
   background: var(--glass-nested-bg);
-  box-shadow: var(--glass-nested-shadow);
+  box-shadow: var(--rm-row-shadow);
   transition: background var(--fast), border-color var(--fast), transform var(--fast), box-shadow var(--fast);
 }
-.rm-item:hover { transform: translateY(-1px); box-shadow: var(--glass-nested-shadow-hover); }
+.rm-item:hover { transform: translateY(-2px); box-shadow: var(--rm-row-shadow-hover); }
 .rm-item.active {
   background: color-mix(in srgb, var(--student) 16%, var(--bg));
   border-color: color-mix(in srgb, var(--student) 55%, transparent);
@@ -2131,10 +2138,10 @@ img { max-width: 100%; display: block; }
   padding: 6px 10px; border-radius: 14px;
   border: 1px solid var(--glass-nested-border);
   background: var(--glass-nested-bg);
-  box-shadow: var(--glass-nested-shadow);
+  box-shadow: var(--rm-row-shadow);
   transition: background var(--fast), border-color var(--fast), box-shadow var(--fast), transform var(--fast);
 }
-.rm-row:hover { box-shadow: var(--glass-nested-shadow-hover); transform: translateY(-1px); }
+.rm-row:hover { box-shadow: var(--rm-row-shadow-hover); transform: translateY(-2px); }
 .rm-row.filled { background: color-mix(in srgb, var(--student, var(--brand)) 7%, var(--glass-nested-bg)); }
 .rm-row-num {
   width: 28px; flex-shrink: 0; text-align: center;
