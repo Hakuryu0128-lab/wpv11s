@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.21.2" />
+  <link rel="stylesheet" href="styles.css?v=11.22.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -545,25 +545,32 @@
           <div class="view-page">
             <div class="view-header"><h2>バックアップ</h2></div>
             <p class="backup-intro">データはこの端末の中だけに保存されています。万一にそなえ、定期的にファイルへ<strong>書き出し（バックアップ）</strong>て保管しましょう。別の端末や、データが消えたときは<strong>復元</strong>で戻せます。</p>
+            <!-- v11.22.0：ユーザー指摘「テキストのみ書き出しと完全バックアップを
+                 わざわざ2つに分ける必要ある？」への対応。元々「テキストのみ」は
+                 v10のlocalStorage 5MB上限を避けるための軽量版だったが、v11は
+                 IndexedDBに移行済みでその制約は無い。ただし写真が多いと完全
+                 バックアップのファイルは大きくなりメール添付等で送りにくい
+                 場合があるため、機能自体は残しつつ「完全バックアップが基本の
+                 バックアップ、テキストのみは写真を含めない軽量モード」という
+                 主従関係が伝わるよう、対等な2枚のカードから、1枚のバックアップ
+                 カード＋その場でON/OFFできる軽量モードのチェックボックスへ
+                 再構成した。 -->
             <div class="import-options">
-              <button class="import-card" id="fullBackupBtn">
-                <svg class="import-icon" viewBox="0 0 32 32" fill="none">
-                  <rect width="32" height="32" rx="8" fill="#FFF7ED"/>
-                  <path d="M16 24V12M10 18l6-6 6 6" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M8 8h16" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                <span>完全バックアップ</span>
-                <small>写真も含めて全部を書き出し（おすすめ）</small>
-              </button>
-              <button class="import-card" id="exportJsonBtn">
-                <svg class="import-icon" viewBox="0 0 32 32" fill="none">
-                  <rect width="32" height="32" rx="8" fill="#F0FDF4"/>
-                  <path d="M16 24V12M10 18l6-6 6 6" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M8 8h16" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                <span>テキストのみ書き出し</span>
-                <small>軽量・写真なし</small>
-              </button>
+              <div class="backup-card-wrap">
+                <button class="import-card" id="fullBackupBtn">
+                  <svg class="import-icon" viewBox="0 0 32 32" fill="none">
+                    <rect width="32" height="32" rx="8" fill="#FFF7ED"/>
+                    <path d="M16 24V12M10 18l6-6 6 6" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M8 8h16" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  <span>バックアップ</span>
+                  <small id="backupBtnDesc">写真も含めて全部を書き出し</small>
+                </button>
+                <label class="backup-lite-check">
+                  <input type="checkbox" id="backupLiteToggle" />
+                  <span>写真を含めない（軽量・テキストのみ）</span>
+                </label>
+              </div>
               <button class="import-card" id="importJsonBtn">
                 <svg class="import-icon" viewBox="0 0 32 32" fill="none">
                   <rect width="32" height="32" rx="8" fill="#EEF2FF"/>
@@ -1389,6 +1396,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.21.2"></script>
+<script src="app.js?v=11.22.0"></script>
 </body>
 </html>

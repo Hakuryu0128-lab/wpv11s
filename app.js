@@ -459,6 +459,22 @@
    再描画・グリッド→ビューアでの再表示など）は即座に反映されるように
    した。mediaDelete()でも削除済みIDのキャッシュを掃除する。タブを閉じる/
    リロードすればキャッシュは消え、保存データや容量には一切影響しない。
+   v11.22.0：ユーザーから「テキストのみ書き出しと完全バックアップ、
+   わざわざ2つに分ける必要ある？1つにしてもいいのでは」との指摘。調査の
+   結果、「テキストのみ書き出し」は元々v10のlocalStorage 5MB上限を避ける
+   ための軽量版だったが、v11はIndexedDBに全面移行済みでその制約は無く
+   なっており、当初の分割理由は解消済みと判明。一方で写真が多いと完全
+   バックアップのJSONファイルはその分大きくなり、メール添付等での共有が
+   しづらくなる場合があるというトレードオフだけは残っている。相談の結果、
+   「完全バックアップ（写真込み）が基本のバックアップで、テキストのみは
+   写真を含めない軽量モード」という主従関係が伝わるUIに再構成することに
+   決定。バックアップ画面の3枚の対等なカード（完全バックアップ／テキスト
+   のみ書き出し／復元）から、2枚（バックアップ／復元）＋バックアップ
+   カードに添えた「写真を含めない（軽量・テキストのみ）」チェックボックス
+   に変更。チェックOFF（既定）でexportFullBackup()、ONでexportJson()を
+   呼ぶよう分岐し、説明文(small#backupBtnDesc)もチェック状態に応じて
+   書き換える。exportJson()/exportFullBackup()自体のロジック・出力形式は
+   変更なし（呼び出しの入口をまとめただけ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -466,7 +482,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.21.2';
+const APP_VERSION = '11.22.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -8543,10 +8559,22 @@ function bindEvents() {
   });
   q('exportPdfBtn')?.addEventListener('click', exportPdf);
 
-  /* ── Import / Export ── */
-  q('exportJsonBtn')?.addEventListener('click', exportJson);
+  /* ── Import / Export ──
+     v11.22.0：「完全バックアップ」と「テキストのみ書き出し」を別々の
+     ボタンとして対等に並べるのをやめ、1つの「バックアップ」ボタン＋
+     その場でON/OFFできる「写真を含めない（軽量）」チェックボックスに
+     統合。チェック時はexportJson()（テキストのみ・従来のexportJsonBtn相当）、
+     未チェック時はexportFullBackup()を呼ぶ。説明文(small)もチェックの
+     状態に合わせて書き換える。 */
+  q('backupLiteToggle')?.addEventListener('change', e => {
+    const lite = e.target.checked;
+    const desc = q('backupBtnDesc');
+    if (desc) desc.textContent = lite ? '写真を含めず、テキストのみを書き出し（軽量）' : '写真も含めて全部を書き出し';
+  });
+  q('fullBackupBtn')?.addEventListener('click', () => {
+    if (q('backupLiteToggle')?.checked) exportJson(); else exportFullBackup();
+  });
   q('importJsonBtn')?.addEventListener('click', () => q('importFileInput')?.click());
-  q('fullBackupBtn')?.addEventListener('click', exportFullBackup);
   q('wipeDataBtn')?.addEventListener('click', wipeAllData);
   q('importFileInput')?.addEventListener('change', e => {
     if (e.target.files[0]) importJson(e.target.files[0]);

@@ -2944,7 +2944,7 @@ img { max-width: 100%; display: block; }
 /* ── Import / Print ──────────────────────────────────────── */
 .import-options {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 .import-card {
@@ -2958,11 +2958,25 @@ img { max-width: 100%; display: block; }
   border: 1px solid var(--border);
   transition: box-shadow var(--fast), border-color var(--fast);
   text-align: left;
+  width: 100%;
 }
 .import-card:hover { box-shadow: var(--shadow); border-color: var(--gray-300); }
 .import-icon { width: 32px; height: 32px; }
 .import-card span { font-size: 14px; font-weight: 600; color: var(--gray-800); }
 .import-card small { font-size: 12px; color: var(--gray-500); }
+
+/* v11.22.0：完全バックアップ＝基本のバックアップ、テキストのみ＝その場で
+   ON/OFFする軽量モード、という主従関係を示すための小さなチェックボックス。
+   カードのすぐ下に添えることで「別のバックアップ」ではなく「同じ
+   バックアップのオプション」であることが伝わるようにした。 */
+.backup-card-wrap { display: flex; flex-direction: column; gap: 10px; }
+.backup-lite-check {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 4px;
+  font-size: 13px; color: var(--gray-600);
+  cursor: pointer;
+}
+.backup-lite-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); flex-shrink: 0; }
 
 /* ── 印刷ページ：スタジオ風デザイン（v11.6.0） ──
    ユーザー指摘：ページタイトル(h2)や各セクションを囲む枠線が野暮ったい／
