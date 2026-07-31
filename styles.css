@@ -1701,6 +1701,12 @@ img { max-width: 100%; display: block; }
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   animation: txFadeIn .2s ease;
 }
+/* v11.21.2：ユーザー要望「写真を拡大してるビューを閉じるときのフェード
+   アウトもお願いしたかった」への対応。開くときはtxFadeInで既にフェード
+   していたが、閉じる時はJS側でov.remove()を即座に呼ぶだけで演出が無かった。
+   .closingを付与するとtxFadeOutで暗幕ごとふわっと消えるようにし、
+   JS側はアニメーション時間だけ待ってから実際にDOMから取り除く。 */
+.photo-viewer.closing { animation: txFadeOut .22s ease forwards; }
 .photo-viewer-bar {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 14px 18px;

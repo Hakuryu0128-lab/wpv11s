@@ -444,6 +444,21 @@
    付与し、transitionend（フォールバックのタイムアウト付き）を待って
    から本来の削除処理へ進むようにした。写真ページ（galleryPhotos）・
    授業モーダル内の写真（lessonPhotos）の両方に適用。
+   v11.21.2：ユーザーから2件。
+   ①「写真を拡大してるビューを閉じるときのフェードアウトもお願いしたい」
+   →.photo-viewerは開く時はtxFadeInでフェードしていたが、閉じる時は
+   ov.remove()を即座に呼ぶだけで演出が無かった。close()で.closingを付与
+   すると.photo-viewer.closingがtxFadeOutで暗幕ごとふわっと消えるように
+   なり、JS側もそのアニメーション時間（220ms）だけ待ってから実際にDOMから
+   除去するよう変更。
+   ②「写真を毎回読み込むときにちょっと時間がかかる」との指摘。原因は
+   写真一覧の再描画（削除・追加のたび全件再描画）やビューア表示のたびに、
+   同じ写真でも毎回IndexedDB(mediaGet)から読み直していたこと。初回の
+   実データ転送自体は短縮できないが、_photoSrcCache（Map）を新設し、
+   一度読み込んだ写真はセッション中メモリに保持。2回目以降（一覧の
+   再描画・グリッド→ビューアでの再表示など）は即座に反映されるように
+   した。mediaDelete()でも削除済みIDのキャッシュを掃除する。タブを閉じる/
+   リロードすればキャッシュは消え、保存データや容量には一切影響しない。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -451,7 +466,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.21.1';
+const APP_VERSION = '11.21.2';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -892,7 +907,7 @@ async function mediaDelete(id) {
     const tx = db.transaction(MEDIA_STORE, 'readwrite');
     tx.objectStore(MEDIA_STORE).delete(id);
     tx.oncomplete = () => res(); tx.onerror = () => res();
-  });
+  }).finally(() => { try { _photoSrcCache.delete(id); } catch (e) {} }); // v11.21.2：削除済み写真のキャッシュ掃除
 }
 async function mediaAll() {
   const db = await mediaDb();
@@ -910,10 +925,23 @@ async function mediaAll() {
   });
 }
 
+/* v11.21.2：ユーザーから「写真を毎回読み込むときにちょっと時間がかかる」
+   との指摘。原因は、写真一覧の再描画（削除・追加のたび）やビューア表示の
+   たびに、同じ写真でも毎回IndexedDB(mediaGet)へ問い合わせてbase64データを
+   取り直していたこと。初回の読み込み自体（IndexedDBからの実データ転送）は
+   ディスクI/Oなので短縮できないが、セッション中に一度読み込んだ写真は
+   メモリ上のMapにキャッシュしておき、2回目以降（一覧の再描画・サムネイル
+   →ビューアでの再表示など）は即座に反映されるようにした。タブを閉じる/
+   リロードするとキャッシュは消える（＝そのままの挙動に戻る）ので、
+   ストレージ容量や既存データへの影響は無い。 */
+const _photoSrcCache = new Map(); // id -> dataURL（このセッション内のみ有効）
+
 /* Set an <img> src from a photo ref (IDB id), with legacy fallback */
 function setPhotoSrc(imgEl, photo) {
   if (photo.src) { imgEl.src = photo.src; return; }        // legacy inline dataURL
-  mediaGet(photo.id).then(d => { if (d) imgEl.src = d; });
+  const cached = _photoSrcCache.get(photo.id);
+  if (cached) { imgEl.src = cached; return; }
+  mediaGet(photo.id).then(d => { if (d) { _photoSrcCache.set(photo.id, d); imgEl.src = d; } });
 }
 
 /* v11.21.1：ユーザー要望「写真の×ボタンで消した時にもフェードアウトして
@@ -2921,7 +2949,13 @@ function openPhotoViewer(items, index, maybeLessonKey) {
     });
   }
 
-  const close = () => { document.removeEventListener('keydown', ov._keyHandler); ov.remove(); };
+  // v11.21.2：閉じる時も開く時（txFadeIn）と対になるフェードアウトを
+  // 再生してからDOMから除去する。
+  const close = () => {
+    document.removeEventListener('keydown', ov._keyHandler);
+    ov.classList.add('closing');
+    setTimeout(() => ov.remove(), 220);
+  };
   ov.querySelector('.pv-close').addEventListener('click', close);
   prevBtn.addEventListener('click', () => show(cur - 1, -1));
   nextBtn.addEventListener('click', () => show(cur + 1, 1));
