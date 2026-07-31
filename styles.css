@@ -3125,11 +3125,18 @@ img { max-width: 100%; display: block; }
   border-right: 1px solid var(--border);
 }
 .settings-nav-title { font-size: 22px; font-weight: 800; padding: 4px 12px 14px; }
+/* v11.18.0：絵文字プレフィックス（👤📅🎨✨📚🔒💛🐞ℹ️）を、サイドバーの
+   .nav-iconと同じ単色line-art SVGに統一（ユーザー要望：色数を落として
+   サイドバーのような自作アイコンにしたい）。アイコンはstroke="currentColor"
+   なのでcolorプロパティ一つでhover/active時の色変化にも自動で追従する
+   （サイドバーのnav-iconと同じ仕組み）。 */
 .settings-nav-item {
+  display: flex; align-items: center; gap: 10px;
   text-align: left; padding: 12px 14px; border-radius: 12px;
   font-size: 15px; font-weight: 600; color: var(--gray-700);
   transition: background var(--fast), color var(--fast);
 }
+.settings-nav-icon { width: 18px; height: 18px; flex-shrink: 0; }
 .settings-nav-item:hover { background: color-mix(in srgb, var(--bg) 70%, transparent); }
 .settings-nav-item.active {
   background: color-mix(in srgb, var(--brand) 14%, var(--bg));

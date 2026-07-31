@@ -329,6 +329,16 @@
    要素がびっしり並ぶ構造ではなく、少数の大きめカード/パネルがまばらに
    浮く構成なので、グラデーションの透け方に矛盾が出ない）。
    app.js側の変更なし（CSSのみ）。
+   v11.18.0：設定ページ左ナビの絵文字プレフィックス（👤📅🎨✨📚🔒💛🐞ℹ️の
+   9個）を、サイドバー(.nav-icon)と同じ単色line-artのSVGアイコンに置き換え
+   （ユーザー要望：色数の多い絵文字をやめてサイドバーのような自作アイコンで
+   統一感を出したい）。アイコンはfill="none" stroke="currentColor"なので、
+   .settings-nav-itemのcolorプロパティ（通常時var(--gray-700)／active時
+   var(--brand-dark)）にサイドバーと同じ仕組みで自動追従する。
+   .settings-nav-itemをdisplay:flexにしてアイコン+ラベルを横並びにし、
+   新設の.settings-nav-icon（18×18px）で統一サイズにした。設定の各
+   セクション見出し（h3）は元々絵文字を使っておらずプレーンテキストの
+   ままだったので変更なし。app.js側の変更なし（HTML/CSSのみ）。
 ════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -336,7 +346,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.17.0';
+const APP_VERSION = '11.18.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];

@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.17.0" />
+  <link rel="stylesheet" href="styles.css?v=11.18.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -645,15 +645,72 @@
             <!-- 左：カテゴリ -->
             <nav class="settings-nav" id="settingsNav" aria-label="設定カテゴリ">
               <div class="settings-nav-title">設定</div>
-              <button class="settings-nav-item active" data-cat="account">👤 アカウント</button>
-              <button class="settings-nav-item" data-cat="lesson">📅 授業</button>
-              <button class="settings-nav-item" data-cat="theme">🎨 テーマ</button>
-              <button class="settings-nav-item" data-cat="anim">✨ アニメーション</button>
-              <button class="settings-nav-item" data-cat="subjects">📚 教科</button>
-              <button class="settings-nav-item" data-cat="lock">🔒 ロック</button>
-              <button class="settings-nav-item" data-cat="support">💛 応援</button>
-              <button class="settings-nav-item" data-cat="feedback">🐞 不具合の報告</button>
-              <button class="settings-nav-item" data-cat="about">ℹ️ このアプリ</button>
+              <button class="settings-nav-item active" data-cat="account">
+                <svg class="settings-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.6"/>
+                  <path d="M4 17c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                <span>アカウント</span>
+              </button>
+              <button class="settings-nav-item" data-cat="lesson">
+                <svg class="settings-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.6"/>
+                  <path d="M10 6v4l3 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>授業</span>
+              </button>
+              <button class="settings-nav-item" data-cat="theme">
+                <svg class="settings-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M10 3a7 7 0 100 14c.9 0 1.6-.72 1.6-1.6 0-.42-.16-.8-.43-1.08-.25-.27-.42-.62-.42-1.02 0-.85.7-1.5 1.55-1.5H14a3 3 0 003-3A7 7 0 0010 3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                  <circle cx="6.7" cy="8.2" r=".9" fill="currentColor"/>
+                  <circle cx="10.2" cy="6.3" r=".9" fill="currentColor"/>
+                  <circle cx="13.3" cy="8.4" r=".9" fill="currentColor"/>
+                </svg>
+                <span>テーマ</span>
+              </button>
+              <button class="settings-nav-item" data-cat="anim">
+                <svg class="settings-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M10 3l1.15 4.1L15 8.3l-3.85 1.2L10 13.6l-1.15-4.1L5 8.3l3.85-1.2L10 3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                  <path d="M15.5 12.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                </svg>
+                <span>アニメーション</span>
+              </button>
+              <button class="settings-nav-item" data-cat="subjects">
+                <svg class="settings-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M4 4.8A1.8 1.8 0 015.8 3H10v14H5.8A1.8 1.8 0 014 15.2V4.8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                  <path d="M16 4.8A1.8 1.8 0 0014.2 3H10v14h4.2a1.8 1.8 0 001.8-1.8V4.8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                </svg>
+                <span>教科</span>
+              </button>
+              <button class="settings-nav-item" data-cat="lock">
+                <svg class="settings-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <rect x="4.5" y="9" width="11" height="8" rx="1.6" stroke="currentColor" stroke-width="1.6"/>
+                  <path d="M6.5 9V6.5a3.5 3.5 0 017 0V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                <span>ロック</span>
+              </button>
+              <button class="settings-nav-item" data-cat="support">
+                <svg class="settings-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M10 17s-6.5-4.2-6.5-9A3.8 3.8 0 0110 5.5 3.8 3.8 0 0116.5 8c0 4.8-6.5 9-6.5 9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+                <span>応援</span>
+              </button>
+              <button class="settings-nav-item" data-cat="feedback">
+                <svg class="settings-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M3 5.8A2.8 2.8 0 015.8 3h8.4A2.8 2.8 0 0117 5.8v5.4a2.8 2.8 0 01-2.8 2.8H8l-4 3.2v-3.34A2.8 2.8 0 013 11.2V5.8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                  <path d="M10 6.8v3.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                  <circle cx="10" cy="12.4" r=".9" fill="currentColor"/>
+                </svg>
+                <span>不具合の報告</span>
+              </button>
+              <button class="settings-nav-item" data-cat="about">
+                <svg class="settings-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <circle cx="10" cy="10" r="7.3" stroke="currentColor" stroke-width="1.6"/>
+                  <path d="M10 9.3v4.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                  <circle cx="10" cy="6.7" r=".95" fill="currentColor"/>
+                </svg>
+                <span>このアプリ</span>
+              </button>
             </nav>
 
             <!-- 右：詳細 -->
@@ -1315,6 +1372,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.17.0"></script>
+<script src="app.js?v=11.18.0"></script>
 </body>
 </html>
