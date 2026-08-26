@@ -378,6 +378,8 @@ img { max-width: 100%; display: block; }
   font-style: normal;
   color: var(--brand);
 }
+/* v11.23.0：ヘッダー内でロゴの隣から右側グループ（時計・天気の並び）の
+   先頭へ移動した。週移動ボタンがロゴのすぐ右に来る配置に合わせた変更。 */
 .header-ver {
   font-size: 10px;
   font-weight: 700;
@@ -385,7 +387,6 @@ img { max-width: 100%; display: block; }
   background: var(--gray-100);
   padding: 1px 6px;
   border-radius: 8px;
-  margin-right: 4px;
   flex-shrink: 0;
   user-select: none;
 }
@@ -786,6 +787,12 @@ img { max-width: 100%; display: block; }
   position: fixed; z-index: 1200; width: 280px; max-width: calc(100vw - 16px);
   background: var(--bg); border: 1px solid var(--border); border-radius: 14px;
   box-shadow: 0 12px 40px rgba(0,0,0,.18); padding: 14px;
+  /* v11.23.0：写真欄が付いて縦に伸びるようになったので、枚数が増えても
+     画面外へはみ出さないよう上限を付けて中身をスクロールさせる。
+     PWAで100vhが実表示領域より短くなる問題があるため単位はdvhを使う。 */
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .event-popover[hidden] { display: none; }
 .event-pop-title { font-size: 13px; font-weight: 800; color: var(--gray-800); margin-bottom: 8px; }
@@ -800,6 +807,17 @@ img { max-width: 100%; display: block; }
 }
 .event-pop-edit:focus { outline: none; border-color: var(--brand); background: #fff; }
 .event-pop-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+/* v11.23.0：ポップオーバー内の写真欄。月行事ページの写真シートと
+   同じ .photo-grid--modal を使うので、見た目と操作が両画面で一致する。
+   ただし幅280pxのポップオーバーでは .photo-grid--modal の80px列だと
+   2列にしかならず1枚が大きすぎるので、ここだけ3列になるよう列幅を
+   詰める（.photo-grid--modal はCSSの後方にあるので、打ち消すために
+   親クラス込みで詳細度を上げている）。 */
+.event-pop-label--photos { margin-top: 12px; }
+.event-popover .event-pop-photos {
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+}
 
 /* タグ色ピッカー */
 .tag-color-menu {
@@ -1797,6 +1815,21 @@ img { max-width: 100%; display: block; }
 }
 .photo-add-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
 
+/* v11.23.0：週案の行事セルに出す「写真あり」バッジ（枚数つき）。
+   「＋N」バッジ(.ev-more)は右下にいるので、こちらは右上に置いて重ならない
+   ようにしている。下の文字が透けないよう背景色で薄く塗る。 */
+.ev-photo-badge {
+  position: absolute;
+  right: 3px; top: 2px;
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 0 4px; height: 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  color: var(--brand);
+  font-size: 9px; font-weight: 800; line-height: 1;
+  pointer-events: none;
+}
+
 /* ── Events Grid ─────────────────────────────────────────── */
 /* Per-day vertical event list */
 /* v11.12.0：margin指定が無くブロック要素として左詰めになっていたため、
@@ -1848,6 +1881,62 @@ img { max-width: 100%; display: block; }
 }
 .event-input::placeholder { color: var(--gray-300); }
 .event-input:focus { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+
+/* v11.23.0：各日の右端に置く写真ボタン。紙で配られる日報を撮って
+   その日の行事に添付できるようにするための入口。枚数があるときは
+   ブランド色＋枚数バッジで「もう写真がある日」がひと目で分かる。 */
+.event-photo-btn {
+  position: relative;
+  flex-shrink: 0;
+  width: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-400);
+  border-left: 1px solid var(--border);
+  transition: color var(--fast), background var(--fast);
+}
+.event-photo-btn:hover { color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent); }
+.event-photo-btn.has-photo { color: var(--brand); }
+.event-photo-count {
+  position: absolute;
+  top: 6px; right: 5px;
+  min-width: 15px; height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 9px; font-weight: 800; line-height: 15px;
+  text-align: center;
+}
+
+/* その日の写真シート（月行事の写真ボタンから開く） */
+.evphoto-modal {
+  position: fixed; inset: 0; z-index: 4400;
+  background: rgba(8,12,20,.5);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.evphoto-sheet {
+  width: 100%; max-width: 520px;
+  max-height: min(80dvh, 660px); overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.28);
+  padding: 18px;
+}
+.evphoto-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.evphoto-title { font-size: 15px; font-weight: 800; color: var(--gray-800); }
+.evphoto-close {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--gray-500); font-size: 15px; line-height: 1;
+}
+.evphoto-close:hover { background: var(--gray-100); color: var(--gray-800); }
+.evphoto-hint { font-size: 11px; color: var(--gray-400); margin: 4px 0 12px; }
 
 /* ── Notes (iPad-style two-pane) ─────────────────────────── */
 /* v11.14.0：デザイン統一Phase2。ToDo(.todo-board-wrap)・名簿(.roster-manager)

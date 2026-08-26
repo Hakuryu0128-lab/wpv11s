@@ -520,7 +520,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.22.3';
+const APP_VERSION = '11.23.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -604,6 +604,7 @@ const state = {
   photos: [],
   notes: [],
   events: {},          // { 'YYYY-MM': { '1': 'text', '2': 'text', ... } }
+  eventPhotos: {},     // { 'YYYY-MM-DD': [{ id, caption, date }] }  行事に紐づく写真（日報の撮影など）
   lunch: {},           // { 'YYYY-MM-DD': '昼休みメモ' }
   schools: [],         // [{ id, name, code }]
   activeSchoolId: null,
@@ -663,6 +664,7 @@ function save() {
     photos: state.photos,
     notes: state.notes,
     events: state.events,
+    eventPhotos: state.eventPhotos,
     lunch: state.lunch,
     schools: state.schools,
     activeSchoolId: state.activeSchoolId,
@@ -707,6 +709,7 @@ async function load() {
     state.photos    = data.photos    || [];
     state.notes     = data.notes     || [];
     Object.assign(state.events, data.events || {});
+    Object.assign(state.eventPhotos, data.eventPhotos || {});
     Object.assign(state.lunch, data.lunch || {});
     state.schools      = data.schools      || [];
     state.activeSchoolId = data.activeSchoolId || null;
@@ -1810,6 +1813,9 @@ function renderWeekCalendar() {
 /* アイコン群（週案タイル・進度表など複数箇所で使い回すため共有定数にしてある） */
 const ICON_CLIP = '<svg viewBox="0 0 16 16" fill="none" width="13" height="13" aria-hidden="true"><path d="M11 5L6 10a1.5 1.5 0 002 2l5-5a3 3 0 00-4-4l-5 5a4.5 4.5 0 006 6l4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+const ICON_CAMERA = '<svg viewBox="0 0 20 20" fill="none" width="17" height="17" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 014.5 5h1.7l.9-1.4A1 1 0 018 3.2h4a1 1 0 01.85.4L13.8 5h1.7A1.5 1.5 0 0117 6.5v8A1.5 1.5 0 0115.5 16h-11A1.5 1.5 0 013 14.5v-8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="10" cy="10.3" r="2.9" stroke="currentColor" stroke-width="1.4"/></svg>';
+const ICON_CAMERA_SM = '<svg viewBox="0 0 20 20" fill="none" width="11" height="11" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 014.5 5h1.7l.9-1.4A1 1 0 018 3.2h4a1 1 0 01.85.4L13.8 5h1.7A1.5 1.5 0 0117 6.5v8A1.5 1.5 0 0115.5 16h-11A1.5 1.5 0 013 14.5v-8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="10" cy="10.3" r="2.9" stroke="currentColor" stroke-width="1.6"/></svg>';
+
 /* Build the inner HTML of a lesson tile */
 function lessonTileHtml(lesson) {
   const subjectObj = getSubjectById(lesson.subjectId);
@@ -1869,6 +1875,136 @@ function flashLessonCell(key) {
   setTimeout(() => cell.classList.remove('lesson-flash'), 2600);
 }
 
+/* ── 行事の写真（v11.23.0） ─────────────────────────────────
+   紙で配られる日報などを撮影して、その日の行事に添付できるようにする機能。
+   実データ（dataURL）は授業写真・手書きと同じ IndexedDB(weeky_media) に入れ、
+   state 側には参照(id)だけを日付キーで持つ（localStorageの5MB問題を避ける
+   既存方針をそのまま踏襲）。週案の行事ポップオーバーと月行事ページは同じ
+   state.eventPhotos を読み書きするので、どちらから登録してもどちらからも
+   参照できる。 */
+function evDateKey(mk, day) { return `${mk}-${String(day).padStart(2, '0')}`; }
+
+function eventPhotosOf(dk) {
+  const arr = state.eventPhotos[dk];
+  return Array.isArray(arr) ? arr : [];
+}
+
+/* その日の写真を openPhotoViewer() が受け取る items 形式へ */
+function eventPhotoItems(dk) {
+  return eventPhotosOf(dk).map(p => ({ photo: p, lessonKey: null, eventKey: dk, label: '' }));
+}
+
+/* 写真ピッカーは1つの <input type=file> を使い回すため、
+   「今どの日付に追加しようとしているか」をここで覚えておく。 */
+let _evPhotoTarget = null;
+let _evPhotoOnChange = null;
+
+function pickEventPhotos(dk, onChange) {
+  _evPhotoTarget = dk;
+  _evPhotoOnChange = onChange || null;
+  document.getElementById('eventPhotoFileInput')?.click();
+}
+
+function handleEventPhotoFiles(files) {
+  const dk = _evPhotoTarget;
+  if (!dk) return;
+  Array.from(files).forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = async e => {
+      const id = uid();
+      try { await mediaPut(id, e.target.result); }
+      catch (err) { showToast('画像の保存に失敗しました'); return; }
+      if (!Array.isArray(state.eventPhotos[dk])) state.eventPhotos[dk] = [];
+      state.eventPhotos[dk].push({ id, caption: file.name, date: dk });
+      save();                                   // iOSのピッカーは戻り際にページを再読込することがあるので即保存
+      if (_evPhotoOnChange) _evPhotoOnChange();
+      // 週案グリッドは画面を切り替えても再描画されない（switchViewはweeklyを
+      // 再描画しない設計）ので、月行事ページから追加したときも必ず描き直して
+      // 行事セルの写真バッジを最新にする。
+      renderWeekGrid();
+      if (typeof updateStats === 'function') updateStats();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function removeEventPhoto(dk, id, itemEl, onChange) {
+  if (!await customConfirm('この写真を削除しますか?')) return;
+  await fadeOutPhotoItem(itemEl);
+  const p = eventPhotosOf(dk).find(x => x.id === id);
+  if (p && !p.src) mediaDelete(id);
+  const rest = eventPhotosOf(dk).filter(x => x.id !== id);
+  if (rest.length) state.eventPhotos[dk] = rest; else delete state.eventPhotos[dk];
+  save();
+  if (onChange) onChange();
+  renderWeekGrid();
+  if (typeof updateStats === 'function') updateStats();
+}
+
+/* 「追加ボタン＋サムネイル」の共通描画。週案の行事ポップオーバーと
+   月行事ページの写真モーダルの両方がこれを呼ぶので、どちらから見ても
+   同じ見た目・同じ操作になる。 */
+function renderEventPhotoGrid(grid, dk, onChange) {
+  if (!grid) return;
+  grid.innerHTML = '';
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'photo-add-btn';
+  addBtn.setAttribute('aria-label', '写真を追加');
+  addBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M16 4v24M4 16h24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
+  addBtn.addEventListener('click', () => pickEventPhotos(dk, onChange));
+  grid.appendChild(addBtn);
+
+  const items = eventPhotoItems(dk);
+  items.forEach((entry, i) => {
+    const item = document.createElement('div');
+    item.className = 'photo-item';
+    item.innerHTML = `<img alt="${escHtml(entry.photo.caption || `写真 ${i + 1}`)}" loading="lazy" />
+      <button type="button" class="photo-del" aria-label="写真を削除">✕</button>`;
+    setPhotoSrc(item.querySelector('img'), entry.photo);
+    item.querySelector('img').addEventListener('click', () => openPhotoViewer(eventPhotoItems(dk), i));
+    item.querySelector('.photo-del').addEventListener('click', e => {
+      e.stopPropagation();
+      removeEventPhoto(dk, entry.photo.id, item, onChange);
+    });
+    grid.insertBefore(item, addBtn);
+  });
+}
+
+/* 月行事ページの写真ボタンから開く、その日ぶんの写真シート */
+function openEventPhotoModal(y, m, day) {
+  const dk = evDateKey(`${y}-${String(m).padStart(2, '0')}`, day);
+  let ov = document.getElementById('eventPhotoModal');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'eventPhotoModal';
+  ov.className = 'evphoto-modal';
+  document.body.appendChild(ov);
+
+  const dow = WEEKDAY_JP[new Date(y, m - 1, day).getDay()];
+  ov.innerHTML = `
+    <div class="evphoto-sheet" role="dialog" aria-modal="true" aria-label="${m}月${day}日の写真">
+      <div class="evphoto-head">
+        <div class="evphoto-title">${m}月${day}日（${dow}）の写真</div>
+        <button type="button" class="evphoto-close" aria-label="閉じる">✕</button>
+      </div>
+      <div class="evphoto-hint">日報などを撮影して残せます。写真をタップすると全画面で開きます。</div>
+      <div class="photo-grid photo-grid--modal" id="evPhotoGrid"></div>
+    </div>`;
+
+  const close = () => {
+    ov.remove();
+    if (state.activeView === 'events') renderEventsGrid();   // 枚数バッジを更新
+  };
+  ov.querySelector('.evphoto-close').addEventListener('click', close);
+  ov.addEventListener('click', e => { if (e.target === ov) close(); });
+
+  const grid = ov.querySelector('#evPhotoGrid');
+  const rerender = () => renderEventPhotoGrid(grid, dk, rerender);
+  rerender();
+}
+
 /* 行事の展開ポップオーバー（週案の行事セルをタップ → 全項目表示＆編集） */
 let _eventPop = null;
 function openEventPopover(mk, day, anchor) {
@@ -1878,7 +2014,11 @@ function openEventPopover(mk, day, anchor) {
     document.body.appendChild(pop);
     document.addEventListener('click', e => {
       if (pop.hidden) return;
+      // v11.23.0：写真ピッカー・全画面ビューア・確認ダイアログを開いている
+      // 間は「外側をクリックした」とみなさない（ポップオーバーが勝手に閉じる）。
       if (e.target.closest('#eventPopover') || e.target.closest('.grid-event-cell')) return;
+      if (e.target.id === 'eventPhotoFileInput') return;
+      if (e.target.closest('.photo-viewer') || e.target.closest('.evphoto-modal') || e.target.closest('#dialogBackdrop')) return;
       _saveEventPopover(); pop.hidden = true;
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { pop.hidden = true; } });
@@ -1891,10 +2031,16 @@ function openEventPopover(mk, day, anchor) {
     ${items.length ? `<ul class="event-pop-list">${items.map(it => `<li>${escHtml(it)}</li>`).join('')}</ul>` : '<div class="event-pop-empty">まだ行事がありません</div>'}
     <label class="event-pop-label">編集（スペース／改行で項目を区切る）</label>
     <textarea class="event-pop-edit" id="eventPopEdit" rows="3">${escHtml(items.join('\n'))}</textarea>
+    <label class="event-pop-label event-pop-label--photos">写真（日報など）</label>
+    <div class="photo-grid photo-grid--modal event-pop-photos" id="eventPopPhotos"></div>
     <div class="event-pop-actions">
       <button type="button" class="btn-ghost" id="eventPopClose">閉じる</button>
       <button type="button" class="btn-primary" id="eventPopSave">保存</button>
     </div>`;
+  const dk = evDateKey(mk, day);
+  const popGrid = pop.querySelector('#eventPopPhotos');
+  const rerenderPopPhotos = () => renderEventPhotoGrid(popGrid, dk, rerenderPopPhotos);
+  rerenderPopPhotos();
   pop.querySelector('#eventPopSave').addEventListener('click', () => { _saveEventPopover(); pop.hidden = true; });
   pop.querySelector('#eventPopClose').addEventListener('click', () => { pop.hidden = true; });
   const r = anchor.getBoundingClientRect();
@@ -1963,12 +2109,14 @@ function renderWeekGrid() {
     const mk = monthKeyOf(date);
     const dayMap = (state.events[mk] && !Array.isArray(state.events[mk])) ? state.events[mk] : {};
     const txt = dayMap[date.getDate()] || '';
+    const nPhoto = eventPhotosOf(evDateKey(mk, date.getDate())).length;
     const cell = document.createElement('div');
-    cell.className = 'grid-event-cell' + (txt ? ' has-event' : '');
+    cell.className = 'grid-event-cell' + (txt ? ' has-event' : '') + (nPhoto ? ' has-photo' : '');
     const items = txt.split(/[\s　]+/).filter(Boolean);   // スペース区切りで項目化
     const MAXL = 2;   // 常に2行。あふれたら右下に「＋N」
     let inner = items.slice(0, MAXL).map(it => `<span class="ev-item">${escHtml(it)}</span>`).join('');
     if (items.length > MAXL) inner += `<span class="ev-more">＋${items.length - MAXL}</span>`;
+    if (nPhoto) inner += `<span class="ev-photo-badge" title="写真${nPhoto}枚">${ICON_CAMERA_SM}${nPhoto}</span>`;
     cell.innerHTML = inner;
     cell.title = items.join('\n');
     cell.addEventListener('click', () => openEventPopover(mk, date.getDate(), cell));
@@ -4128,7 +4276,7 @@ function renderPhotoGallery() {
     item.querySelector('img').addEventListener('click', () => openPhotoViewer(allItems, i));
     item.querySelector('.photo-del').addEventListener('click', e => {
       e.stopPropagation();
-      removeGalleryPhoto(photo.id, lessonKey, item);
+      removeGalleryPhoto(photo.id, lessonKey, item, entry.eventKey);
     });
     grid.insertBefore(item, addBtn);
   });
@@ -4138,6 +4286,9 @@ function renderPhotoGallery() {
 function galleryPhotos() {
   const out = [];
   (state.photos || []).forEach(p => out.push({ photo: p, lessonKey: null, label: '' }));
+  Object.entries(state.eventPhotos || {}).forEach(([dk, arr]) => {
+    (arr || []).forEach(p => out.push({ photo: p, lessonKey: null, eventKey: dk, label: `${dk} 行事` }));
+  });
   Object.entries(state.lessons || {}).forEach(([key, l]) => {
     (l.photos || []).forEach(p => {
       const date = key.split('_')[0];
@@ -4152,10 +4303,15 @@ function galleryPhotos() {
   return out;
 }
 
-async function removeGalleryPhoto(id, lessonKey, itemEl) {
+async function removeGalleryPhoto(id, lessonKey, itemEl, eventKey) {
   if (!await customConfirm('この写真を削除しますか?')) return;
   await fadeOutPhotoItem(itemEl);
-  if (lessonKey && state.lessons[lessonKey]) {
+  if (eventKey) {
+    const p = eventPhotosOf(eventKey).find(x => x.id === id);
+    if (p && !p.src) mediaDelete(id);
+    const rest = eventPhotosOf(eventKey).filter(x => x.id !== id);
+    if (rest.length) state.eventPhotos[eventKey] = rest; else delete state.eventPhotos[eventKey];
+  } else if (lessonKey && state.lessons[lessonKey]) {
     state.lessons[lessonKey].photos = (state.lessons[lessonKey].photos || []).filter(p => p.id !== id);
     mediaDelete(id);
   } else {
@@ -4357,8 +4513,20 @@ function renderEventsGrid() {
       }
     });
 
+    // v11.23.0：行の右端に写真ボタン。押すとその日の写真シートが開く。
+    const dk = evDateKey(monthKey, day);
+    const nPhoto = eventPhotosOf(dk).length;
+    const photoBtn = document.createElement('button');
+    photoBtn.type = 'button';
+    photoBtn.className = 'event-photo-btn' + (nPhoto ? ' has-photo' : '');
+    photoBtn.setAttribute('aria-label', `${m}月${day}日の写真${nPhoto ? `（${nPhoto}枚）` : 'を追加'}`);
+    photoBtn.title = nPhoto ? `写真 ${nPhoto}枚` : '写真を追加';
+    photoBtn.innerHTML = ICON_CAMERA + (nPhoto ? `<span class="event-photo-count">${nPhoto}</span>` : '');
+    photoBtn.addEventListener('click', () => openEventPhotoModal(y, m, day));
+
     row.appendChild(dateLabel);
     row.appendChild(input);
+    row.appendChild(photoBtn);
     grid.appendChild(row);
   }
 }
@@ -7475,6 +7643,7 @@ function collectState() {
     schemaVersion: SCHEMA_VERSION, app: 'WEEKY', appVersion: APP_VERSION, exported: new Date().toISOString(),
     lessons: state.lessons, todos: state.todos, longTodos: state.longTodos,
     projects: state.projects, notes: state.notes, events: state.events,
+    eventPhotos: state.eventPhotos,
     lunch: state.lunch,
     schools: state.schools, activeSchoolId: state.activeSchoolId,
     students: state.students, attendance: state.attendance, evaluations: state.evaluations,
@@ -7522,6 +7691,7 @@ function importJson(file) {
       if (data.projects)  state.projects  = data.projects;
       if (data.notes)     state.notes     = data.notes;
       if (data.events)    Object.assign(state.events, data.events);
+      if (data.eventPhotos) Object.assign(state.eventPhotos, data.eventPhotos);
       if (data.lunch)     Object.assign(state.lunch, data.lunch);
       if (data.schools)   state.schools   = data.schools;
       if (data.activeSchoolId) state.activeSchoolId = data.activeSchoolId;
@@ -8577,6 +8747,10 @@ function bindEvents() {
   });
   q('addPhotoBtn')?.addEventListener('click', () => q('photoFileInput')?.click());
   q('addLessonPhotoBtn')?.addEventListener('click', () => q('photoFileInput')?.click());
+  q('eventPhotoFileInput')?.addEventListener('change', e => {
+    handleEventPhotoFiles(e.target.files);
+    e.target.value = '';
+  });
 
   /* ── Print / PDF ── */
   // v11.4.0：印刷ページ単体で週を選べるように、ヘッダーと同じ操作

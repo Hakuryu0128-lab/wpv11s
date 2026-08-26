@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.22.3" />
+  <link rel="stylesheet" href="styles.css?v=11.23.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -282,7 +282,6 @@
     <!-- HEADER -->
     <header class="app-header" role="banner">
       <div class="header-logo" aria-label="WEEKY">W<em>E</em>EKY</div>
-      <span class="header-ver" id="headerVersion"></span>
 
       <div class="week-nav" role="group" aria-label="週移動">
         <button class="week-nav-btn" id="prevWeekBtn" aria-label="前の週へ">
@@ -314,6 +313,7 @@
       </div>
 
       <div class="header-right">
+        <span class="header-ver" id="headerVersion"></span>
         <span class="clock" id="clockEl" aria-live="off" aria-label="現在時刻"></span>
         <button class="weather-btn" id="weatherBtn" aria-label="天気予報" aria-haspopup="dialog">
           <span class="weather-icon" id="weatherIcon" aria-hidden="true">－</span>
@@ -1366,6 +1366,7 @@
 </div>
 
 <input type="file" id="photoFileInput" accept="image/*" multiple hidden />
+<input type="file" id="eventPhotoFileInput" accept="image/*" multiple hidden />
 <input type="file" id="importFileInput" accept=".json" hidden />
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -1392,6 +1393,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.22.3"></script>
+<script src="app.js?v=11.23.0"></script>
 </body>
 </html>
