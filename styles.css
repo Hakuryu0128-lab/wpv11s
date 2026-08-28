@@ -936,6 +936,19 @@ img { max-width: 100%; display: block; }
   padding: 2px 9px;
   white-space: nowrap;
 }
+/* 合同授業バッジ（v11.24.0）：主学級のtile-classの右に「+N」で他クラス数を示す */
+.tile-class-more {
+  flex-shrink: 0;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--tile-color, var(--brand));
+  background: #fff;
+  border: 1.4px solid var(--tile-color, var(--brand));
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
 .tile-title {
   font-size: 12px;
   font-weight: 500;
@@ -1336,6 +1349,31 @@ img { max-width: 100%; display: block; }
 }
 .todo-compose-btn:hover { background: var(--brand-hover); }
 .todo-compose-btn:active { transform: scale(.97); }
+
+/* 繰り返しToDoボタンの行（v11.24.0） */
+.todo-toolbar-row { display: flex; justify-content: flex-end; margin: -6px 2px 8px; flex-shrink: 0; }
+.todo-recur-badge { margin-right: 4px; }
+.recurring-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 16px; }
+.recurring-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--bg-subtle); border: 1px solid var(--border);
+}
+.recurring-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.recurring-item-text { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.recurring-item-rule { font-size: 11.5px; color: var(--gray-500); }
+.recurring-item-del { color: var(--gray-300); font-size: 13px; flex-shrink: 0; padding: 4px; }
+.recurring-item-del:hover { color: var(--danger); }
+.recurring-form { border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.modal-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+
+/* アップデート内容のお知らせ（v11.24.0） */
+.changelog-entry + .changelog-entry { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.changelog-entry-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.changelog-version { font-size: 12px; font-weight: 800; color: #fff; background: var(--brand); border-radius: 999px; padding: 2px 9px; }
+.changelog-title { font-size: 14.5px; font-weight: 700; color: var(--text); }
+.changelog-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.changelog-list li { font-size: 13.5px; line-height: 1.6; color: var(--gray-700); }
 
 .todo-board {
   flex: 1; min-height: 0;
@@ -2549,6 +2587,20 @@ img { max-width: 100%; display: block; }
 .abs-sum-x { font-weight: 800; color: var(--danger); }
 .abs-sum-list { font-size: 11px; color: var(--gray-500); }
 .abs-sum-ok { font-size: 12px; color: var(--success); font-weight: 700; }
+
+/* ── 提出物チェックリスト（v11.24.0）── 出席テーブル(.abs-*)の見た目をそのまま流用し、
+   項目ヘッダー（タイトル・締切・削除）だけ評価タブ(.evt-col-*)の部品を借りている。 */
+.abs-add { width: 86px; }
+.sub-occ { min-width: 132px; padding: 6px 8px; }
+.sub-item-name { font-size: 12.5px; }
+.sub-deadline-wrap { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--gray-500); }
+.sub-deadline-input { border: 1px solid var(--border); border-radius: 6px; padding: 2px 3px; font-size: 10.5px; background: var(--bg); }
+.sub-cell { cursor: pointer; }
+.sub-cell.sub-done    { color: var(--success); }
+.sub-cell.sub-pending { color: var(--gray-300); }
+.sub-cell.sub-overdue { color: var(--danger); }
+.sub-filters { display: flex; flex-wrap: wrap; gap: 16px; margin: 4px 2px 12px; }
+.sub-filter-opt { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gray-600); }
 .att-o, .att-x, .att-tri, .att-empty {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 50%;
@@ -3820,6 +3872,28 @@ img { max-width: 100%; display: block; }
 .lm-chip--forgot { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
 .lm-chip--absent { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; }
 .lm-att-none { font-size: 11.5px; color: var(--gray-400); }
+
+/* ── 合同授業：追加クラスのチップ＋選択ポップオーバー（v11.24.0） ── */
+.lm-field--joint { gap: 4px; }
+.lm-joint-head { display: flex; }
+.lm-joint-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.lm-joint-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 700; color: var(--brand);
+  background: var(--brand-light); border-radius: 999px; padding: 3px 6px 3px 10px;
+}
+.lm-joint-chip-x { color: var(--brand); opacity: .6; font-size: 11px; line-height: 1; }
+.lm-joint-chip-x:hover { opacity: 1; }
+.lm-joint-panel {
+  border: 1px solid var(--glass-card-border); border-radius: var(--radius-sm);
+  background: var(--glass-card-bg); box-shadow: var(--glass-card-shadow);
+  padding: 8px 10px; max-height: 220px; overflow-y: auto;
+}
+.lm-joint-panel[hidden] { display: none; }
+.lm-joint-group + .lm-joint-group { margin-top: 8px; }
+.lm-joint-group-label { font-size: 10.5px; font-weight: 700; color: var(--gray-400); margin-bottom: 3px; }
+.lm-joint-opt { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 0; color: var(--gray-700); }
+.lm-joint-empty { font-size: 12px; color: var(--gray-400); }
 .lm-field { display: flex; flex-direction: column; gap: 6px; }
 .lm-field > label { font-size: 12.5px; font-weight: 700; color: var(--gray-600); }
 .lm-select, .lm-input {

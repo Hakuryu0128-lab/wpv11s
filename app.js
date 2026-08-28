@@ -520,7 +520,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.23.0';
+const APP_VERSION = '11.24.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -617,6 +617,9 @@ const state = {
                        // max=満点(未設定なら100扱い) vp=観点('' | 'knowledge'知識・技能 | 'thinking'思考・判断・表現 | 'attitude'主体的に学習に取り組む態度)
   evalRules: {},       // { subjectId: { scale:'3'|'5', a, b, t5, t4, t3, t2 } }  教科ごとの評定基準
                        // 観点別は常にABC(a/bしきい値)。総合評定はscaleがABCなら同じa/b、5段階ならt5〜t2を使う。
+  submissionItems: {}, // { "schoolId__class": [{ id, title, deadline, createdAt }] }  提出物チェックリストの項目（学校×学級ごと）
+  submissions: {},     // { studentId: { itemId: 'YYYY-MM-DD' } }  提出済みの記録（キーが無ければ未提出。値=提出をつけた日）
+  recurringTodos: [],  // [{ id, text, tags, repeat: {type:'weekly',weekday:0-6} | {type:'monthly',day:1-31}, createdAt }]  繰り返しToDoのルール
   settings: {
     teacherName: '',
     schoolName: '',
@@ -675,6 +678,9 @@ function save() {
     evaluations: state.evaluations,
     evalColumns: state.evalColumns,
     evalRules: state.evalRules,
+    submissionItems: state.submissionItems,
+    submissions: state.submissions,
+    recurringTodos: state.recurringTodos,
     settings: state.settings,
   };
   kvSet('weeky_v10', payload).then(() => {
@@ -720,6 +726,9 @@ async function load() {
     state.evaluations  = data.evaluations  || {};
     state.evalColumns  = data.evalColumns  || {};
     state.evalRules    = data.evalRules    || {};
+    state.submissionItems = data.submissionItems || {};
+    state.submissions     = data.submissions     || {};
+    state.recurringTodos  = data.recurringTodos  || [];
     if (data.settings) Object.assign(state.settings, data.settings);
     if (state.settings.viewTransition === 'warp') state.settings.viewTransition = 'pop';  // 廃止した演出のフォールバック
 
@@ -888,6 +897,23 @@ function allClassesGrouped() {
 
 function classByName(name) {
   return activeSchoolClasses().find(c => c.name === name) || null;
+}
+
+/* 授業の「対象クラス一覧」を返す（合同授業対応）。
+   classNames（配列）があればそれを、無ければ従来通りclassNameの単独配列を返す。
+   既存の単一クラス授業は classNames フィールド自体が存在しないので、完全に後方互換。 */
+function lessonClassNames(l) {
+  if (l && Array.isArray(l.classNames) && l.classNames.length) return l.classNames;
+  return (l && l.className) ? [l.className] : [];
+}
+
+/* 授業lがtargetClass（正規化済み・学校名プレフィックス込み許容）を含むか。
+   合同授業では classNames のいずれか1つでも一致すれば対象。 */
+function lessonMatchesClass(l, targetNorm, withSchoolNorm) {
+  return lessonClassNames(l).some(cn => {
+    const c = normClass(cn);
+    return c === targetNorm || (withSchoolNorm && c === withSchoolNorm);
+  });
 }
 
 function studentsInClass(className) {
@@ -1829,6 +1855,7 @@ function lessonTileHtml(lesson) {
     <div class="tile-head">
       <span class="tile-subject">${escHtml(subjectName)}</span>
       ${lesson.className ? `<span class="tile-class">${escHtml(lesson.className)}</span>` : ''}
+      ${(lesson.classNames && lesson.classNames.length > 1) ? `<span class="tile-class-more" title="合同授業: ${escHtml(lesson.classNames.join('・'))}">+${lesson.classNames.length - 1}</span>` : ''}
     </div>
     ${lesson.title ? `<span class="tile-title">${escHtml(lesson.title)}</span>` : ''}
     <div class="tile-icons">
@@ -2269,6 +2296,7 @@ function renderViewContent(viewId) {
   if (viewId === 'roster')      renderRoster();
   if (viewId === 'attendance')  renderAttendance();
   if (viewId === 'evaluation')  renderEvaluation();
+  if (viewId === 'submissions') renderSubmissions();
   if (viewId === 'print')       { updatePrintWeekRange(); renderPrintPreview(); }
 }
 
@@ -2292,7 +2320,7 @@ function switchView(viewId) {
   if (viewId === 'import') updateStorageMeter();   // バックアップ画面で保存容量を更新
 
   // 一部の広い画面（ToDo/名簿/出席/評価/進度）では右パネルを畳んで広く使う
-  const wideViews = ['todo', 'roster', 'attendance', 'evaluation', 'progress'];
+  const wideViews = ['todo', 'roster', 'attendance', 'evaluation', 'submissions', 'progress'];
   const panel = document.getElementById('contextPanel');
   if (panel && window.innerWidth >= 768) {
     panel.classList.toggle('collapsed', wideViews.includes(viewId));
@@ -2334,6 +2362,7 @@ let lessonTags = [];
 let lessonPhotos = [];
 
 let _lmDate = null, _lmPeriod = null;   // 現在編集中の授業の日付・時限（出席受付用）
+let lessonJointClasses = [];   // 合同授業：主学級（#lessonClass）以外に一緒に記録するクラス名の配列
 
 function openLessonModal(key, date, period) {
   currentLessonKey = key;
@@ -2345,6 +2374,10 @@ function openLessonModal(key, date, period) {
   document.getElementById('lessonSubject').value = lesson.subjectId || '';
   populateClassSelect(lesson.className || '');
   document.getElementById('lessonClass').value = lesson.className || '';
+  // 合同授業：classNamesのうち主学級以外を「追加クラス」として復元
+  lessonJointClasses = (Array.isArray(lesson.classNames) ? lesson.classNames : [])
+    .filter(cn => cn && cn !== lesson.className);
+  renderJointClassUI();
 
   const dayIdx = [0,1,2,3,4,5].find(i => formatDate(addDays(state.currentWeekStart, i)) === key.split('_')[0]) ?? 0;
   const periodLabel = periodLabelOf(period);
@@ -2391,13 +2424,14 @@ function renderLessonAttendance(dateStr, period) {
     return;
   }
 
-  // この日・時限の受付のうち、この学級のもの（学級名の全角/半角・学校名プレフィックスを吸収）
-  const target = normClass(cls);
+  // 合同授業：主学級に加え、追加クラス(lessonJointClasses)も出欠の対象に含める
+  // （複数クラス合同の1コマなら、出席受付もクラスをまたいで集計したいため）。
+  const targets = [normClass(cls), ...lessonJointClasses.map(normClass)];
   const sameClass = (className, schoolId) => {
     const c = normClass(className);
-    if (c === target) return true;
+    if (targets.includes(c)) return true;
     const school = state.schools.find(s => s.id === schoolId);
-    return !!(school && normClass(school.name + className) === target);
+    return !!(school && targets.includes(normClass(school.name + className)));
   };
   const recs = state.reception.filter(r => {
     if (r.date !== dateStr || String(r.period) !== String(period)) return false;
@@ -2485,6 +2519,10 @@ function saveLessonModal() {
 
   const prev = state.lessons[currentLessonKey] || {};
   const hasHw = !!(prev.hwPages?.some(Boolean));
+  // 合同授業：主学級(cls)が選ばれている時だけ、追加クラス(lessonJointClasses)を
+  // classNames配列として一緒に保存する。単一クラスのままなら classNames は
+  // 書き込まない（既存の単一クラス授業と完全に同じデータ形のまま＝後方互換）。
+  const jointClasses = (cls && lessonJointClasses.length) ? [cls, ...lessonJointClasses] : null;
   // Record even without subject/class (free time, sub teaching, etc.).
   // Only delete when there is truly nothing to keep.
   if (!title && !note && !subject && !cls && !lessonPhotos.length && !hasHw) {
@@ -2495,6 +2533,8 @@ function saveLessonModal() {
       subjectId: subject, className: cls, title, note,
       tags: [...lessonTags], photos: [...lessonPhotos], mode: currentMode,
     };
+    if (jointClasses) state.lessons[currentLessonKey].classNames = jointClasses;
+    else delete state.lessons[currentLessonKey].classNames;
   }
   save();
   renderWeekGrid();
@@ -2554,9 +2594,11 @@ function openMoveLessonPicker() {
 }
 
 function collectLessonFromForm() {
-  return {
+  const cls = document.getElementById('lessonClass').value;
+  const jointClasses = (cls && lessonJointClasses.length) ? [cls, ...lessonJointClasses] : null;
+  const out = {
     subjectId: document.getElementById('lessonSubject').value,
-    className: document.getElementById('lessonClass').value,
+    className: cls,
     title:     document.getElementById('lessonTitle').value.trim(),
     note:      document.getElementById('lessonNote').value,
     tags:      [...lessonTags],
@@ -2564,6 +2606,8 @@ function collectLessonFromForm() {
     hwPages:   state.lessons[currentLessonKey]?.hwPages || [],
     mode:      currentMode,
   };
+  if (jointClasses) out.classNames = jointClasses;
+  return out;
 }
 
 async function moveLessonTo(newKey, occupied, overlay) {
@@ -2641,7 +2685,7 @@ function runSearch(query, overlay) {
   const results = [];
   // lessons
   Object.entries(state.lessons).forEach(([key, l]) => {
-    const text = `${getSubjectById(l.subjectId)?.name||''} ${l.className||''} ${l.title||''} ${l.note||''}`;
+    const text = `${getSubjectById(l.subjectId)?.name||''} ${lessonClassNames(l).join(' ')} ${l.title||''} ${l.note||''}`;
     if (text.toLowerCase().includes(q)) {
       const [dateStr, period] = key.split('_');
       results.push({ type:'授業', label:`${l.title || getSubjectById(l.subjectId)?.name || '授業'}`, sub:`${dateStr} ${period}限`, action:()=>{ state.currentWeekStart = getWeekStart(new Date(dateStr+'T00:00:00')); renderWeekTitle(); renderWeekGrid(); switchView('weekly'); } });
@@ -2989,6 +3033,68 @@ function populateClassSelect(ensure) {
     opt.value = ensure; opt.textContent = ensure;
     sel.appendChild(opt);
   }
+}
+
+/* ── 合同授業：主学級に加えて他のクラスも選べるチップ＋ポップオーバー ──
+   #lessonClass（単一select、既存のまま不変）とは別に、lessonJointClasses
+   （配列）を横のチップ表示で管理する。保存時は saveLessonModal 側で
+   [primary, ...joint] を classNames として書き込む（primaryが空なら
+   joint選択自体を無効化する＝主学級が先）。 */
+function renderJointClassUI() {
+  const wrap = document.getElementById('lmJointClassWrap');
+  if (!wrap) return;
+  const primary = document.getElementById('lessonClass')?.value || '';
+
+  // 主学級と重複していたら除去（主学級を後から変えた場合の整合性維持）
+  lessonJointClasses = lessonJointClasses.filter(cn => cn && cn !== primary);
+
+  const chips = document.getElementById('lmJointChips');
+  const toggleBtn = document.getElementById('lmJointToggleBtn');
+  if (toggleBtn) toggleBtn.disabled = !primary;
+
+  if (chips) {
+    chips.innerHTML = lessonJointClasses.map(cn => `
+      <span class="lm-joint-chip">${escHtml(cn)}<button type="button" class="lm-joint-chip-x" data-cls="${escHtml(cn)}" aria-label="${escHtml(cn)}を外す">✕</button></span>
+    `).join('');
+    chips.querySelectorAll('.lm-joint-chip-x').forEach(btn => btn.addEventListener('click', () => {
+      lessonJointClasses = lessonJointClasses.filter(cn => cn !== btn.dataset.cls);
+      renderJointClassUI();
+    }));
+  }
+
+  const panel = document.getElementById('lmJointPanel');
+  if (panel && !panel.hidden) renderJointClassPanelOptions(primary);
+}
+
+function renderJointClassPanelOptions(primary) {
+  const panel = document.getElementById('lmJointPanel');
+  if (!panel) return;
+  const groups = allClassesGrouped();
+  panel.innerHTML = groups.map(g => `
+    <div class="lm-joint-group">
+      <div class="lm-joint-group-label">${escHtml(g.schoolName)}</div>
+      ${g.options.filter(o => o.value !== primary).map(o => `
+        <label class="lm-joint-opt">
+          <input type="checkbox" value="${escHtml(o.value)}" ${lessonJointClasses.includes(o.value) ? 'checked' : ''}>
+          ${escHtml(o.label)}
+        </label>
+      `).join('')}
+    </div>
+  `).join('') || '<div class="lm-joint-empty">他に学級がありません</div>';
+  panel.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.addEventListener('change', () => {
+    if (cb.checked) { if (!lessonJointClasses.includes(cb.value)) lessonJointClasses.push(cb.value); }
+    else lessonJointClasses = lessonJointClasses.filter(cn => cn !== cb.value);
+    renderJointClassUI();
+  }));
+}
+
+function toggleJointClassPanel() {
+  const panel = document.getElementById('lmJointPanel');
+  const primary = document.getElementById('lessonClass')?.value || '';
+  if (!panel || !primary) return;
+  const opening = panel.hidden;
+  if (opening) renderJointClassPanelOptions(primary);
+  panel.hidden = !opening;
 }
 
 function renderModalTags(containerId, inputId, tags) {
@@ -3804,6 +3910,7 @@ function createTodoCard(todo) {
   if (reorderable) card.dataset.reorder = '1';
 
   let meta = '';
+  const recurBadge = todo.recurringId ? `<span class="todo-recur-badge" title="繰り返しToDo">🔁</span>` : '';
   if (todo.done) {
     if (todo.doneAt) { const d = new Date(todo.doneAt); meta = `<span class="todo-doneat">✓ ${d.getMonth()+1}/${d.getDate()} 完了</span>`; }
   } else if (todo.due) {
@@ -3822,7 +3929,7 @@ function createTodoCard(todo) {
     ${dragHandle}
     <button class="todo-check ${todo.done ? 'checked' : ''}" role="checkbox" aria-checked="${todo.done}" aria-label="${escHtml(todo.text)}"></button>
     <div class="todo-card-body">
-      <span class="todo-card-text ${todo.done ? 'done' : ''}">${escHtml(todo.text)}</span>
+      <span class="todo-card-text ${todo.done ? 'done' : ''}">${recurBadge}${escHtml(todo.text)}</span>
       ${meta}
     </div>
     <button class="todo-card-edit" aria-label="編集" title="編集">
@@ -3923,6 +4030,130 @@ function saveTodoEdit() {
   closeTodoEdit();
   renderTodoBoard();
   renderTodoTagOptions();
+}
+
+/* ── 繰り返しToDo（v11.24.0）───────────────────────────────
+   state.recurringTodos の各ルールから、直近の該当日（今日以前で最新の1回分だけ）
+   のToDoインスタンスを state.todos に生成する。「毎週」「毎月」どちらも、
+   その日が来るまでは一覧に出ない（要望どおり「〜になったら出てくる」）。
+   しばらく開いていなかった場合も、溜まった過去分をまとめて生成せず、
+   直近1回分だけ作る（ToDo欄が過去の未消化分で埋まらないように）。 */
+function daysInMonth(year, monthIdx0) { return new Date(year, monthIdx0 + 1, 0).getDate(); }
+
+/* repeatルールから「今日以前で直近の該当日」を1つ返す（Dateオブジェクト） */
+function recurringLastOccurrence(repeat, today) {
+  if (!repeat) return null;
+  if (repeat.type === 'weekly') {
+    const wd = Number(repeat.weekday);
+    if (!(wd >= 0 && wd <= 6)) return null;
+    const diff = (today.getDay() - wd + 7) % 7;
+    return addDays(today, -diff);
+  }
+  if (repeat.type === 'monthly') {
+    const day = Number(repeat.day);
+    if (!(day >= 1 && day <= 31)) return null;
+    const thisMonthDay = Math.min(day, daysInMonth(today.getFullYear(), today.getMonth()));
+    let d = new Date(today.getFullYear(), today.getMonth(), thisMonthDay);
+    d.setHours(0, 0, 0, 0);
+    if (d > today) {
+      const py = today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear();
+      const pm = today.getMonth() === 0 ? 11 : today.getMonth() - 1;
+      const prevMonthDay = Math.min(day, daysInMonth(py, pm));
+      d = new Date(py, pm, prevMonthDay);
+      d.setHours(0, 0, 0, 0);
+    }
+    return d;
+  }
+  return null;
+}
+
+/* 各繰り返しルールについて、直近該当日ぶんのToDoインスタンスが無ければ作る。
+   起動時・画面復帰時に呼ぶ。既に同じ回のインスタンスがあれば何もしない
+   （id を rt_<ルールid>_<日付> に固定しているので二重生成しない）。 */
+function ensureRecurringTodoInstances() {
+  if (!Array.isArray(state.recurringTodos) || !state.recurringTodos.length) return;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let changed = false;
+  state.recurringTodos.forEach(rt => {
+    const occ = recurringLastOccurrence(rt.repeat, today);
+    if (!occ) return;
+    const occDate = formatDate(occ);
+    const instId = `rt_${rt.id}_${occDate}`;
+    if (!state.todos.some(t => t.id === instId)) {
+      state.todos.push({
+        id: instId, text: rt.text, done: false, due: occDate,
+        tags: [...(rt.tags || [])], createdAt: Date.now(), recurringId: rt.id,
+      });
+      changed = true;
+    }
+  });
+  if (changed) save();
+}
+
+/* 繰り返しToDoの管理モーダル */
+function renderRecurringList() {
+  const list = document.getElementById('recurringList');
+  if (!list) return;
+  const repeatLabel = rt => rt.repeat?.type === 'weekly'
+    ? `毎週${['日','月','火','水','木','金','土'][rt.repeat.weekday] || ''}曜日`
+    : rt.repeat?.type === 'monthly' ? `毎月${rt.repeat.day}日` : '';
+  if (!state.recurringTodos.length) {
+    list.innerHTML = `<p class="settings-hint">まだ繰り返しToDoはありません。下から追加できます。</p>`;
+    return;
+  }
+  list.innerHTML = state.recurringTodos.map(rt => `
+    <div class="recurring-item" data-id="${rt.id}">
+      <div class="recurring-item-main">
+        <span class="recurring-item-text">${escHtml(rt.text)}</span>
+        <span class="recurring-item-rule">🔁 ${repeatLabel(rt)}</span>
+      </div>
+      <button type="button" class="recurring-item-del" data-id="${rt.id}" aria-label="削除">✕</button>
+    </div>`).join('');
+  list.querySelectorAll('.recurring-item-del').forEach(btn => btn.addEventListener('click', () => deleteRecurringTodo(btn.dataset.id)));
+}
+
+function openRecurringModal() {
+  renderRecurringList();
+  const q = i => document.getElementById(i);
+  q('recurringText').value = '';
+  q('recurringTag').value = '';
+  q('recurringType').value = 'weekly';
+  q('recurringWeekday').value = String(new Date().getDay());
+  q('recurringMonthDay').value = '1';
+  updateRecurringTypeFields();
+  q('recurringModalBackdrop')?.removeAttribute('hidden');
+}
+function closeRecurringModal() {
+  document.getElementById('recurringModalBackdrop')?.setAttribute('hidden', '');
+}
+function updateRecurringTypeFields() {
+  const type = document.getElementById('recurringType')?.value;
+  document.getElementById('recurringWeekdayWrap')?.toggleAttribute('hidden', type !== 'weekly');
+  document.getElementById('recurringMonthDayWrap')?.toggleAttribute('hidden', type !== 'monthly');
+}
+function addRecurringTodoFromForm() {
+  const q = i => document.getElementById(i);
+  const text = (q('recurringText')?.value || '').trim();
+  if (!text) { q('recurringText')?.focus(); return; }
+  const type = q('recurringType')?.value || 'weekly';
+  const tags = (q('recurringTag')?.value || '').split(/[,、\s#]+/).map(s => s.trim()).filter(Boolean);
+  const repeat = type === 'weekly'
+    ? { type: 'weekly', weekday: Number(q('recurringWeekday')?.value || 0) }
+    : { type: 'monthly', day: Math.min(31, Math.max(1, Number(q('recurringMonthDay')?.value || 1))) };
+  state.recurringTodos.push({ id: 'recur_' + uid(), text, tags, repeat, createdAt: Date.now() });
+  ensureRecurringTodoInstances();
+  save();
+  q('recurringText').value = '';
+  q('recurringTag').value = '';
+  renderRecurringList();
+  renderTodoBoard();
+  showToast('繰り返しToDoを追加しました');
+}
+async function deleteRecurringTodo(id) {
+  if (!await customConfirm('この繰り返しToDoを削除しますか?（すでに作られたToDo自体は残ります）')) return;
+  state.recurringTodos = state.recurringTodos.filter(rt => rt.id !== id);
+  save();
+  renderRecurringList();
 }
 
 /* Add from the compose form */
@@ -4131,7 +4362,7 @@ function lessonsOfSubjectClass(subjectId, className) {
   const periodOrder = p => (p === 'after' ? 99 : parseInt(p, 10) || 0);
   const target = normClass(className);
   return Object.entries(state.lessons)
-    .filter(([, l]) => l.subjectId === subjectId && normClass(l.className) === target)   // 教科＋学級が一致すれば表示（タイトル/メモ不問）
+    .filter(([, l]) => l.subjectId === subjectId && lessonMatchesClass(l, target, null))   // 教科＋学級が一致すれば表示（合同授業ならどちらのクラスの一覧にも出る）
     .map(([key, l]) => { const [date, period] = key.split('_'); return { key, date, period, l }; })
     .sort((a, b) => a.date.localeCompare(b.date) || periodOrder(a.period) - periodOrder(b.period));
 }
@@ -4153,7 +4384,7 @@ function renderProgressTable() {
   const names = new Set();
   (state.classes || []).forEach(c => { if (c && c.name) names.add(normClass(effectiveClassName(c.name, c.schoolId))); });
   (state.students || []).forEach(s => { if (s.className) names.add(normClass(effectiveClassName(s.className, s.schoolId))); });
-  Object.values(state.lessons).forEach(l => { if (l.className) names.add(normClass(l.className)); });
+  Object.values(state.lessons).forEach(l => { lessonClassNames(l).forEach(cn => names.add(normClass(cn))); });
   const classes = [...names].sort((a,b)=>a.localeCompare(b,'ja',{numeric:true}));
   const grades = [...new Set(classes.map(gradeOfClass).filter(g => g != null))].sort((a,b)=>a-b);
 
@@ -5173,9 +5404,10 @@ function addSchool(name, code) {
 }
 
 function refreshStudentViews() {
-  if (state.activeView === 'roster')     renderRoster();
-  if (state.activeView === 'attendance') renderAttendance();
-  if (state.activeView === 'evaluation') renderEvaluation();
+  if (state.activeView === 'roster')      renderRoster();
+  if (state.activeView === 'attendance')  renderAttendance();
+  if (state.activeView === 'evaluation')  renderEvaluation();
+  if (state.activeView === 'submissions') renderSubmissions();
 }
 
 /* ── Class management ────────────────────────────────────── */
@@ -5321,11 +5553,7 @@ function subjectOccurrences(subjectId, className) {
   const school = state.schools.find(s => s.id === state.activeSchoolId);
   const withSchool = school ? normClass(school.name + className) : null;
   return Object.entries(state.lessons)
-    .filter(([, l]) => {
-      if (l.subjectId !== subjectId) return false;
-      const c = normClass(l.className);
-      return c === target || (withSchool && c === withSchool);
-    })
+    .filter(([, l]) => l.subjectId === subjectId && lessonMatchesClass(l, target, withSchool))
     .map(([key, l]) => { const [date, period] = key.split('_'); return { key, date, period, l }; })
     .sort((a, b) => a.date.localeCompare(b.date) || periodOrder(a.period) - periodOrder(b.period));
 }
@@ -5720,6 +5948,139 @@ function exportEvaluationCsv() {
   a.click();
   URL.revokeObjectURL(url);
   showToast('CSVを書き出しました');
+}
+
+/* ═══ 提出物チェックリスト（v11.24.0）═══
+   評価タブと同じ「学校×学級ごとに列（項目）を持つ」構造。列は教科ではなく
+   「家庭状況調査」「宿題A」のような提出物のタイトルで、締切（任意・後から
+   編集可）を持つ。セルは生徒×項目のマス目で、タップで○（提出済み・日付
+   自動記録）⇄ 未提出をトグルする。表の見た目・操作感は出席タブ
+   （.abs-*クラス）をそのまま流用して統一している。 */
+let _subMissingOnly = false;   // フィルタ：未提出が1つでもある生徒だけ表示
+let _subOpenOnly = false;      // フィルタ：締切が来ていない（募集中）項目だけ表示
+
+function submissionColKey() { return `${state.activeSchoolId}__${state.rosterClass}`; }
+function submissionItemsFor(colKey) {
+  if (!state.submissionItems[colKey]) state.submissionItems[colKey] = [];
+  return state.submissionItems[colKey];
+}
+function isSubmitted(sid, itemId) { return !!(state.submissions[sid] && state.submissions[sid][itemId]); }
+function submittedDate(sid, itemId) { return state.submissions[sid]?.[itemId] || ''; }
+function isItemOpen(item) { return !item.deadline || item.deadline >= formatDate(new Date()); }
+
+function toggleSubmission(sid, itemId) {
+  if (!state.submissions[sid]) state.submissions[sid] = {};
+  if (state.submissions[sid][itemId]) {
+    delete state.submissions[sid][itemId];
+  } else {
+    state.submissions[sid][itemId] = formatDate(new Date());
+  }
+  save();
+}
+
+function renderSubmissions() {
+  fillSchoolSelect(document.getElementById('subSchoolSelect'));
+  fillClassSelect(document.getElementById('subClassSelect'));
+
+  const container = document.getElementById('submissionsContent');
+  if (!container) return;
+
+  const allStudents = studentsInClass(state.rosterClass);
+  if (!allStudents.length) {
+    container.innerHTML = `<div class="student-empty"><p>この学級に生徒がいません。名簿で登録してください。</p></div>`;
+    return;
+  }
+
+  const colKey = submissionColKey();
+  const allItems = submissionItemsFor(colKey);
+  const items = _subOpenOnly ? allItems.filter(isItemOpen) : allItems;
+
+  const missingTitlesOf = sid => allItems.filter(it => !isSubmitted(sid, it.id)).map(it => it.title);
+  const students = _subMissingOnly ? allStudents.filter(st => missingTitlesOf(st.id).length > 0) : allStudents;
+
+  const headCells = items.map(it => `
+    <th class="abs-occ sub-occ" data-item="${it.id}">
+      <span class="evt-col-name sub-item-name" data-item="${it.id}" title="クリックで名前変更">${escHtml(it.title)}</span>
+      <button class="evt-col-del sub-item-del" data-item="${it.id}" aria-label="${escHtml(it.title)}を削除">✕</button>
+      <div class="evt-col-meta">
+        <span class="sub-deadline-wrap">
+          締切 <input type="date" class="sub-deadline-input" data-item="${it.id}" value="${it.deadline || ''}" aria-label="${escHtml(it.title)}の締切">
+        </span>
+      </div>
+    </th>`).join('');
+
+  const rows = students.map(st => {
+    const missing = missingTitlesOf(st.id);
+    const cells = items.map(it => {
+      const done = isSubmitted(st.id, it.id);
+      const overdue = !done && it.deadline && it.deadline < formatDate(new Date());
+      const cls = done ? 'sub-done' : (overdue ? 'sub-overdue' : 'sub-pending');
+      const mark = done ? '○' : (overdue ? '×' : '－');
+      const title = done ? `${submittedDate(st.id, it.id)} 提出` : (overdue ? '締切超過・未提出' : '未提出');
+      return `<td class="abs-cell sub-cell ${cls}" data-sid="${st.id}" data-item="${it.id}" role="button" tabindex="0" title="${title}">${mark}</td>`;
+    }).join('');
+    const summary = missing.length
+      ? `<span class="abs-sum-x">未${missing.length}</span><span class="abs-sum-list">（${missing.map(escHtml).join('・')}）</span>`
+      : `<span class="abs-sum-ok">全て提出</span>`;
+    return `<tr>
+      <td class="abs-name" data-sid="${st.id}"><span class="abs-num">${st.number || ''}</span>${escHtml(st.name)}</td>
+      ${cells}
+      <td class="abs-summary">${summary}</td></tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <p class="settings-hint">タップで「提出済み」⇄「未提出」を切り替えます。提出した日は自動で記録されます。右上の「＋ 項目」でタイトル（家庭状況調査・宿題など）を追加してください。</p>
+    <div class="sub-filters">
+      <label class="sub-filter-opt"><input type="checkbox" id="subFilterMissing" ${_subMissingOnly ? 'checked' : ''}> 未提出が1つでもある生徒だけ表示</label>
+      <label class="sub-filter-opt"><input type="checkbox" id="subFilterOpen" ${_subOpenOnly ? 'checked' : ''}> 締切が来ていない項目だけ表示（募集中のみ）</label>
+    </div>
+    <div class="abs-wrap">
+      <table class="abs-table">
+        <thead><tr><th class="abs-name abs-corner">氏名</th>${headCells}<th class="abs-add"><button class="evt-add-btn" id="subAddItemBtn">＋ 項目</button></th><th class="abs-summary">未提出</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  // フィルタの切り替え
+  container.querySelector('#subFilterMissing')?.addEventListener('change', e => { _subMissingOnly = e.target.checked; renderSubmissions(); });
+  container.querySelector('#subFilterOpen')?.addEventListener('change', e => { _subOpenOnly = e.target.checked; renderSubmissions(); });
+
+  // 項目の追加
+  container.querySelector('#subAddItemBtn')?.addEventListener('click', async () => {
+    const title = await customPrompt('提出物のタイトル（例：家庭状況調査 / 数学プリント①）', '');
+    if (title === null) return;
+    const t = (title || '').trim();
+    if (!t) return;
+    allItems.push({ id: 'sub_' + uid(), title: t, deadline: '', createdAt: Date.now() });
+    save(); renderSubmissions();
+  });
+  // 項目名の変更
+  container.querySelectorAll('.sub-item-name').forEach(el => el.addEventListener('click', async () => {
+    const item = allItems.find(it => it.id === el.dataset.item); if (!item) return;
+    const title = await customPrompt('タイトルを変更', item.title);
+    if (title === null) return;
+    item.title = (title || '').trim() || item.title; save(); renderSubmissions();
+  }));
+  // 項目の削除
+  container.querySelectorAll('.sub-item-del').forEach(btn => btn.addEventListener('click', async () => {
+    const item = allItems.find(it => it.id === btn.dataset.item); if (!item) return;
+    if (!await customConfirm(`「${item.title}」を削除しますか?（提出記録も消えます）`)) return;
+    const idx = allItems.indexOf(item); allItems.splice(idx, 1);
+    Object.values(state.submissions).forEach(rec => { if (rec) delete rec[item.id]; });
+    save(); renderSubmissions();
+  }));
+  // 締切の変更（後から編集可）
+  container.querySelectorAll('.sub-deadline-input').forEach(inp => inp.addEventListener('change', () => {
+    const item = allItems.find(it => it.id === inp.dataset.item); if (!item) return;
+    item.deadline = inp.value || '';
+    save(); renderSubmissions();
+  }));
+  // セルタップで提出トグル
+  container.querySelectorAll('.sub-cell').forEach(td => {
+    const onToggle = () => { toggleSubmission(td.dataset.sid, td.dataset.item); renderSubmissions(); };
+    td.addEventListener('click', onToggle);
+    td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } });
+  });
 }
 
 function renderEvaluation() {
@@ -7649,6 +8010,8 @@ function collectState() {
     students: state.students, attendance: state.attendance, evaluations: state.evaluations,
     evalColumns: state.evalColumns, evalRules: state.evalRules,
     reception: state.reception,
+    submissionItems: state.submissionItems, submissions: state.submissions,
+    recurringTodos: state.recurringTodos,
     photos: state.photos, settings: state.settings,
   };
 }
@@ -7701,6 +8064,9 @@ function importJson(file) {
       if (data.evaluations) state.evaluations = data.evaluations;
       if (data.evalColumns) state.evalColumns = data.evalColumns;
       if (data.evalRules) state.evalRules = data.evalRules;
+      if (data.submissionItems) state.submissionItems = data.submissionItems;
+      if (data.submissions)     state.submissions     = data.submissions;
+      if (data.recurringTodos)  state.recurringTodos  = data.recurringTodos;
       if (data.photos)    state.photos    = data.photos;
       if (data.settings)  Object.assign(state.settings, data.settings);
 
@@ -7916,6 +8282,64 @@ let _obIndex = 0;
 let _obSteps = [];
 const OB_PALETTE = ['#4F46E5','#7C3AED','#0D9488','#D97706','#16A34A','#DC2626','#DB2777','#EA580C','#0284C7','#65A30D'];
 
+/* ═══ アップデート内容のお知らせ（v11.24.0）═══
+   配信後、既存ユーザーがアップデートされたアプリに最初にアクセスした時、
+   「何が変わったか」を一度だけポップアップで知らせる。新規ユーザー（オン
+   ボーディングを受ける側）には出さない＝オンボーディング完了時に
+   lastSeenVersionを最新にそろえておく。設定画面の「更新履歴を見る」からは
+   いつでも全件を見返せる（そちらはlastSeenVersionを更新しない＝既読状態を
+   壊さない）。 */
+const CHANGELOG = [
+  {
+    version: '11.24.0',
+    title: '合同授業・繰り返しToDo・提出物チェックリスト',
+    items: [
+      '授業に複数のクラスを選べるようになりました（合同授業向け）。学級を選んだあと「＋ 合同授業として他のクラスも記録」から追加できます。進度表・出席受付にも反映されます。',
+      '毎週◯曜日・毎月◯日に自動で出てくる「繰り返しToDo」を追加しました。ToDo画面上部の「🔁 繰り返し」から設定できます。',
+      '新しい「提出物」ページを追加しました。名簿と連携して、生徒をタップするだけで提出チェックができます。提出日は自動で記録され、締切は後から編集できます。',
+    ],
+  },
+];
+
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+function pendingChangelogEntries() {
+  const last = state.settings.lastSeenVersion || '0';
+  return CHANGELOG.filter(c => compareVersions(c.version, last) > 0).sort((a, b) => compareVersions(a.version, b.version));
+}
+function renderChangelogModal(entries, { markSeen }) {
+  const backdrop = document.getElementById('changelogModalBackdrop');
+  const body = document.getElementById('changelogModalBody');
+  if (!backdrop || !body || !entries.length) return;
+  body.innerHTML = entries.map(c => `
+    <div class="changelog-entry">
+      <div class="changelog-entry-head"><span class="changelog-version">v${c.version}</span><span class="changelog-title">${escHtml(c.title)}</span></div>
+      <ul class="changelog-list">${c.items.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>
+    </div>`).join('');
+  backdrop.dataset.markSeen = markSeen ? '1' : '0';
+  backdrop.removeAttribute('hidden');
+}
+function closeChangelogModal() {
+  const backdrop = document.getElementById('changelogModalBackdrop');
+  if (backdrop?.dataset.markSeen === '1') { state.settings.lastSeenVersion = APP_VERSION; save(); }
+  backdrop?.setAttribute('hidden', '');
+}
+function maybeShowChangelogPopup() {
+  const entries = pendingChangelogEntries();
+  if (!entries.length) return;
+  renderChangelogModal(entries, { markSeen: true });
+}
+function openFullChangelog() {
+  renderChangelogModal([...CHANGELOG].sort((a, b) => compareVersions(b.version, a.version)), { markSeen: false });
+}
+
 async function needsOnboarding() {
   if ((await kvGet('weeky_onboarded')) === '1') return false;
   const hasData = (state.settings.teacherName && state.settings.teacherName.trim())
@@ -7926,7 +8350,8 @@ async function needsOnboarding() {
 }
 
 async function maybeStartOnboarding() {
-  if (!(await needsOnboarding())) return;
+  if (!(await needsOnboarding())) { maybeShowChangelogPopup(); return; }
+  state.settings.lastSeenVersion = APP_VERSION;   // 新規ユーザーは最初から最新＝お知らせ対象外
   state.settings.subjects = [];   // 新規ユーザーは使う教科だけ自分で追加する
   startOnboarding();
 }
@@ -8410,6 +8835,7 @@ async function startApp() {
   initAppHeight();
   preventDoubleTapZoom();
   await load();   // v11: IndexedDBからの読み込みなのでawaitしてから描画に入る
+  ensureRecurringTodoInstances();   // 繰り返しToDo：該当日ぶんのインスタンスを起動時に確認
   migratePhotosToIdb();   // move any legacy inline photos into IndexedDB
   requestPersistentStorage();   // ask the browser not to auto-evict our data
   applyTheme(state.settings.theme || 'indigo');
@@ -8455,8 +8881,10 @@ async function startApp() {
 
   // deadline notifications on load + whenever the window regains focus
   setTimeout(() => checkTodoNotifications(true), 1800);
-  window.addEventListener('focus', () => checkTodoNotifications());
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkTodoNotifications(); });
+  window.addEventListener('focus', () => { ensureRecurringTodoInstances(); checkTodoNotifications(); });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { ensureRecurringTodoInstances(); checkTodoNotifications(); if (state.activeView === 'todo') renderTodoBoard(); }
+  });
 }
 
 function bindEvents() {
@@ -8554,7 +8982,14 @@ function bindEvents() {
 
   ['lessonTitle', 'lessonNote'].forEach(id => q(id)?.addEventListener('input', scheduleAutosave));
   ['lessonSubject', 'lessonClass'].forEach(id => q(id)?.addEventListener('change', scheduleAutosave));
-  q('lessonClass')?.addEventListener('change', () => { if (_lmDate != null) renderLessonAttendance(_lmDate, _lmPeriod); });
+  q('lessonClass')?.addEventListener('change', () => { if (_lmDate != null) renderLessonAttendance(_lmDate, _lmPeriod); renderJointClassUI(); });
+  q('lmJointToggleBtn')?.addEventListener('click', toggleJointClassPanel);
+  document.addEventListener('click', e => {
+    const panel = q('lmJointPanel');
+    if (!panel || panel.hidden) return;
+    if (e.target.closest('#lmJointPanel') || e.target.closest('#lmJointToggleBtn')) return;
+    panel.hidden = true;
+  });
 
   /* ── Tags ── */
   function setupTagInput(inputId, containerId, tags) {
@@ -8613,9 +9048,9 @@ function bindEvents() {
   /* ── Student section: school/class selects ── */
   const onSchoolChange = e => { state.activeSchoolId = e.target.value; state.rosterClass = null; save(); refreshStudentViews(); };
   const onClassChange  = e => { state.rosterClass = e.target.value; refreshStudentViews(); };
-  ['rosterSchoolSelect','attSchoolSelect','evalSchoolSelect'].forEach(id =>
+  ['rosterSchoolSelect','attSchoolSelect','evalSchoolSelect','subSchoolSelect'].forEach(id =>
     q(id)?.addEventListener('change', onSchoolChange));
-  ['rosterClassSelect','attClassSelect','evalClassSelect'].forEach(id =>
+  ['rosterClassSelect','attClassSelect','evalClassSelect','subClassSelect'].forEach(id =>
     q(id)?.addEventListener('change', onClassChange));
   q('evalSubjectSelect')?.addEventListener('change', renderEvaluation);
 
@@ -8710,8 +9145,20 @@ function bindEvents() {
   q('rcpCamStop')?.addEventListener('click', stopCamScan);
   q('rcpCamFlip')?.addEventListener('click', flipCamScan);
   q('tutReplayBtn')?.addEventListener('click', startTutorial);
+  q('changelogReplayBtn')?.addEventListener('click', openFullChangelog);
+  q('changelogModalClose')?.addEventListener('click', closeChangelogModal);
+  q('changelogModalOk')?.addEventListener('click', closeChangelogModal);
+  q('changelogModalBackdrop')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeChangelogModal(); });
   q('todoEditSave')?.addEventListener('click', saveTodoEdit);
   q('todoEditCancel')?.addEventListener('click', closeTodoEdit);
+
+  /* ── 繰り返しToDo（v11.24.0）── */
+  q('todoRecurringBtn')?.addEventListener('click', openRecurringModal);
+  q('recurringModalClose')?.addEventListener('click', closeRecurringModal);
+  q('recurringCancelBtn')?.addEventListener('click', closeRecurringModal);
+  q('recurringAddBtn')?.addEventListener('click', addRecurringTodoFromForm);
+  q('recurringType')?.addEventListener('change', updateRecurringTypeFields);
+  q('recurringModalBackdrop')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeRecurringModal(); });
   q('todoEditBackdrop')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeTodoEdit(); });
   ['rcpDate','rcpPeriod','rcpClass'].forEach(id => q(id)?.addEventListener('change', renderReceptionLists));
   // 受付中に学校を切り替える → その学校の学級に入れ替えて再表示

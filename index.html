@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.23.0" />
+  <link rel="stylesheet" href="styles.css?v=11.24.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -241,6 +241,14 @@
       </svg>
       <span class="nav-label">評価</span>
     </button>
+    <button class="nav-item nav-item--student" data-view="submissions" aria-label="提出物"
+            data-tip-title="提出物" data-tip="家庭状況調査や宿題など、提出物のタイトルを作って、生徒ごとにタップで提出チェックできます。提出日は自動で記録されます。">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M6 2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M4 9l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="nav-label">提出物</span>
+    </button>
 
     <div class="sb-spacer"></div>
 
@@ -366,6 +374,9 @@
               <button type="submit" class="todo-compose-btn" id="todoComposeBtn">追加</button>
             </form>
             <div class="todo-tagpicker" id="todoTagPicker"></div>
+            <div class="todo-toolbar-row">
+              <button type="button" class="btn-ghost btn-sm" id="todoRecurringBtn">🔁 繰り返し</button>
+            </div>
             <div class="todo-board" id="todoBoard"></div>
           </div>
         </div>
@@ -537,6 +548,20 @@
               </div>
             </div>
             <div id="evaluationContent"></div>
+          </div>
+        </div>
+
+        <!-- 提出物チェックリスト（v11.24.0） -->
+        <div class="view" id="view-submissions">
+          <div class="view-page view-page--student">
+            <div class="student-toolbar">
+              <h2>提出物</h2>
+              <div class="student-toolbar-controls">
+                <select class="filter-select" id="subSchoolSelect" aria-label="学校"></select>
+                <select class="filter-select" id="subClassSelect" aria-label="学級"></select>
+              </div>
+            </div>
+            <div id="submissionsContent"></div>
           </div>
         </div>
 
@@ -866,6 +891,7 @@
                 </div>
 
                 <button class="btn-secondary" id="tutReplayBtn" type="button" style="margin:4px 0 8px">🎓 チュートリアルをもう一度見る</button>
+                <button class="btn-secondary" id="changelogReplayBtn" type="button" style="margin:0 0 8px">🎉 更新履歴を見る</button>
 
                 <div class="about-legal">
                   <p class="about-legal-text">© 2026 WEEKY</p>
@@ -978,6 +1004,13 @@
         <div class="lm-field">
           <label for="lessonClass">学級</label>
           <select class="lm-select" id="lessonClass" aria-label="学級"></select>
+        </div>
+        <div class="lm-field lm-field--joint">
+          <div class="lm-joint-head">
+            <button type="button" class="btn-ghost btn-sm" id="lmJointToggleBtn">＋ 合同授業として他のクラスも記録</button>
+          </div>
+          <div class="lm-joint-chips" id="lmJointChips"></div>
+          <div class="lm-joint-panel" id="lmJointPanel" hidden></div>
         </div>
         <div class="lm-field">
           <label for="lessonTitle">授業タイトル</label>
@@ -1220,6 +1253,69 @@
   </div>
 </div>
 
+<!-- 繰り返しToDo 管理モーダル（v11.24.0） -->
+<div class="modal-backdrop" id="recurringModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="recurringModalTitle" hidden>
+  <div class="modal modal--dialog">
+    <div class="modal-body">
+      <div class="modal-head-row">
+        <h3 id="recurringModalTitle">🔁 繰り返しToDo</h3>
+        <button class="modal-close-btn" id="recurringModalClose" aria-label="閉じる">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="settings-hint">「毎週◯曜日」「毎月◯日」になったら、その日のToDoとして自動で出てきます。</p>
+      <div class="recurring-list" id="recurringList"></div>
+
+      <div class="recurring-form">
+        <label class="todo-edit-label">内容</label>
+        <input type="text" id="recurringText" class="form-input" placeholder="例: 週案の提出" />
+        <label class="todo-edit-label">タグ（任意）</label>
+        <input type="text" id="recurringTag" class="form-input" placeholder="例：学年" />
+        <label class="todo-edit-label">繰り返し</label>
+        <select id="recurringType" class="form-input">
+          <option value="weekly">毎週</option>
+          <option value="monthly">毎月</option>
+        </select>
+        <div id="recurringWeekdayWrap">
+          <label class="todo-edit-label">曜日</label>
+          <select id="recurringWeekday" class="form-input">
+            <option value="0">日曜日</option><option value="1">月曜日</option><option value="2">火曜日</option>
+            <option value="3">水曜日</option><option value="4">木曜日</option><option value="5">金曜日</option>
+            <option value="6">土曜日</option>
+          </select>
+        </div>
+        <div id="recurringMonthDayWrap" hidden>
+          <label class="todo-edit-label">日にち</label>
+          <input type="number" id="recurringMonthDay" class="form-input" min="1" max="31" value="1" />
+          <p class="settings-hint">29〜31日を指定した月にその日が無い場合は、その月の末日になります。</p>
+        </div>
+        <button type="button" class="btn-secondary" id="recurringAddBtn" style="margin-top:8px">＋ この内容で追加</button>
+      </div>
+    </div>
+    <footer class="modal-footer">
+      <button class="btn-ghost" id="recurringCancelBtn">閉じる</button>
+    </footer>
+  </div>
+</div>
+
+<!-- アップデート内容のお知らせ（v11.24.0） -->
+<div class="modal-backdrop" id="changelogModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="changelogModalTitle" hidden>
+  <div class="modal modal--dialog">
+    <div class="modal-body">
+      <div class="modal-head-row">
+        <h3 id="changelogModalTitle">🎉 アップデートしました</h3>
+        <button class="modal-close-btn" id="changelogModalClose" aria-label="閉じる">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div id="changelogModalBody"></div>
+    </div>
+    <footer class="modal-footer">
+      <button class="btn-primary" id="changelogModalOk">わかりました</button>
+    </footer>
+  </div>
+</div>
+
 <!-- ═══ QR受付（出席）オーバーレイ ═══ -->
 <div class="reception-overlay" id="receptionOverlay" hidden>
   <header class="rcp-header">
@@ -1393,6 +1489,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.23.0"></script>
+<script src="app.js?v=11.24.0"></script>
 </body>
 </html>
