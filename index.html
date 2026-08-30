@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.24.0" />
+  <link rel="stylesheet" href="styles.css?v=11.24.1" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -371,11 +371,29 @@
                 <button type="button" class="todo-tag-caret" id="todoTagCaret" aria-label="タグ一覧を表示">▼</button>
               </span>
               <input type="date" class="todo-compose-date" id="todoComposeDate" aria-label="締切（任意・入れると長期ToDo）" />
+              <label class="todo-recur-check">
+                <input type="checkbox" id="todoComposeRecurCheck" />
+                <span>🔁 繰り返す</span>
+              </label>
               <button type="submit" class="todo-compose-btn" id="todoComposeBtn">追加</button>
+              <div class="todo-recur-inline" id="todoComposeRecurFields" hidden>
+                <select id="todoComposeRecurType" class="filter-select" aria-label="繰り返しの種類">
+                  <option value="weekly">毎週</option>
+                  <option value="monthly">毎月</option>
+                </select>
+                <select id="todoComposeRecurWeekday" class="filter-select" aria-label="曜日">
+                  <option value="0">日曜日</option><option value="1">月曜日</option><option value="2">火曜日</option>
+                  <option value="3">水曜日</option><option value="4">木曜日</option><option value="5">金曜日</option>
+                  <option value="6">土曜日</option>
+                </select>
+                <span class="todo-recur-inline-month" id="todoComposeRecurMonthWrap" hidden>
+                  毎月 <input type="number" id="todoComposeRecurDay" min="1" max="31" value="1" class="todo-recur-day-input" aria-label="日にち" /> 日
+                </span>
+              </div>
             </form>
             <div class="todo-tagpicker" id="todoTagPicker"></div>
             <div class="todo-toolbar-row">
-              <button type="button" class="btn-ghost btn-sm" id="todoRecurringBtn">🔁 繰り返し</button>
+              <button type="button" class="btn-ghost btn-sm" id="todoRecurringBtn">🔁 繰り返し中のToDoを管理</button>
             </div>
             <div class="todo-board" id="todoBoard"></div>
           </div>
@@ -1001,16 +1019,11 @@
           <label for="lessonSubject">教科</label>
           <select class="lm-select" id="lessonSubject" aria-label="教科"></select>
         </div>
-        <div class="lm-field">
-          <label for="lessonClass">学級</label>
-          <select class="lm-select" id="lessonClass" aria-label="学級"></select>
-        </div>
-        <div class="lm-field lm-field--joint">
-          <div class="lm-joint-head">
-            <button type="button" class="btn-ghost btn-sm" id="lmJointToggleBtn">＋ 合同授業として他のクラスも記録</button>
-          </div>
-          <div class="lm-joint-chips" id="lmJointChips"></div>
-          <div class="lm-joint-panel" id="lmJointPanel" hidden></div>
+        <div class="lm-field lm-field--classmulti">
+          <label id="lessonClassLabel">学級（複数選択可・合同授業ならまとめて選ぶ）</label>
+          <select class="lm-select" id="lessonClass" aria-hidden="true" style="display:none" tabindex="-1"></select>
+          <button type="button" class="lm-class-multi-btn" id="lmClassMultiBtn" aria-labelledby="lessonClassLabel" aria-haspopup="true"></button>
+          <div class="lm-joint-panel" id="lmClassPanel" hidden></div>
         </div>
         <div class="lm-field">
           <label for="lessonTitle">授業タイトル</label>
@@ -1263,34 +1276,8 @@
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </button>
       </div>
-      <p class="settings-hint">「毎週◯曜日」「毎月◯日」になったら、その日のToDoとして自動で出てきます。</p>
+      <p class="settings-hint">「毎週◯曜日」「毎月◯日」になったら、その日のToDoとして自動で出てきます。新しく追加するときは、ToDo入力欄の「🔁 繰り返す」にチェックを入れてください。</p>
       <div class="recurring-list" id="recurringList"></div>
-
-      <div class="recurring-form">
-        <label class="todo-edit-label">内容</label>
-        <input type="text" id="recurringText" class="form-input" placeholder="例: 週案の提出" />
-        <label class="todo-edit-label">タグ（任意）</label>
-        <input type="text" id="recurringTag" class="form-input" placeholder="例：学年" />
-        <label class="todo-edit-label">繰り返し</label>
-        <select id="recurringType" class="form-input">
-          <option value="weekly">毎週</option>
-          <option value="monthly">毎月</option>
-        </select>
-        <div id="recurringWeekdayWrap">
-          <label class="todo-edit-label">曜日</label>
-          <select id="recurringWeekday" class="form-input">
-            <option value="0">日曜日</option><option value="1">月曜日</option><option value="2">火曜日</option>
-            <option value="3">水曜日</option><option value="4">木曜日</option><option value="5">金曜日</option>
-            <option value="6">土曜日</option>
-          </select>
-        </div>
-        <div id="recurringMonthDayWrap" hidden>
-          <label class="todo-edit-label">日にち</label>
-          <input type="number" id="recurringMonthDay" class="form-input" min="1" max="31" value="1" />
-          <p class="settings-hint">29〜31日を指定した月にその日が無い場合は、その月の末日になります。</p>
-        </div>
-        <button type="button" class="btn-secondary" id="recurringAddBtn" style="margin-top:8px">＋ この内容で追加</button>
-      </div>
     </div>
     <footer class="modal-footer">
       <button class="btn-ghost" id="recurringCancelBtn">閉じる</button>
@@ -1489,6 +1476,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.24.0"></script>
+<script src="app.js?v=11.24.1"></script>
 </body>
 </html>

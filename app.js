@@ -520,7 +520,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.24.0';
+const APP_VERSION = '11.24.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -2362,7 +2362,7 @@ let lessonTags = [];
 let lessonPhotos = [];
 
 let _lmDate = null, _lmPeriod = null;   // 現在編集中の授業の日付・時限（出席受付用）
-let lessonJointClasses = [];   // 合同授業：主学級（#lessonClass）以外に一緒に記録するクラス名の配列
+let lessonSelectedClasses = [];   // この授業に紐づく学級名の配列（1つなら通常授業、2つ以上なら合同授業）
 
 function openLessonModal(key, date, period) {
   currentLessonKey = key;
@@ -2374,10 +2374,11 @@ function openLessonModal(key, date, period) {
   document.getElementById('lessonSubject').value = lesson.subjectId || '';
   populateClassSelect(lesson.className || '');
   document.getElementById('lessonClass').value = lesson.className || '';
-  // 合同授業：classNamesのうち主学級以外を「追加クラス」として復元
-  lessonJointClasses = (Array.isArray(lesson.classNames) ? lesson.classNames : [])
-    .filter(cn => cn && cn !== lesson.className);
-  renderJointClassUI();
+  // 選択中の学級一覧を復元（classNamesがあればそれを、無ければ従来のclassName単独を）
+  lessonSelectedClasses = Array.isArray(lesson.classNames) && lesson.classNames.length
+    ? [...lesson.classNames]
+    : (lesson.className ? [lesson.className] : []);
+  renderClassMultiUI();
 
   const dayIdx = [0,1,2,3,4,5].find(i => formatDate(addDays(state.currentWeekStart, i)) === key.split('_')[0]) ?? 0;
   const periodLabel = periodLabelOf(period);
@@ -2416,17 +2417,16 @@ function openLessonModal(key, date, period) {
 function renderLessonAttendance(dateStr, period) {
   const attEl = document.getElementById('lmAttendance');
   if (!attEl) return;
-  const cls = document.getElementById('lessonClass')?.value || '';
   attEl.hidden = false;
 
-  if (!cls) {
+  if (!lessonSelectedClasses.length) {
     attEl.innerHTML = `<div class="lm-att-empty">学級を選ぶと、この時間の出席受付ができます</div>`;
     return;
   }
 
-  // 合同授業：主学級に加え、追加クラス(lessonJointClasses)も出欠の対象に含める
+  // 合同授業：選択された学級すべてを出欠の対象に含める
   // （複数クラス合同の1コマなら、出席受付もクラスをまたいで集計したいため）。
-  const targets = [normClass(cls), ...lessonJointClasses.map(normClass)];
+  const targets = lessonSelectedClasses.map(normClass);
   const sameClass = (className, schoolId) => {
     const c = normClass(className);
     if (targets.includes(c)) return true;
@@ -2519,10 +2519,10 @@ function saveLessonModal() {
 
   const prev = state.lessons[currentLessonKey] || {};
   const hasHw = !!(prev.hwPages?.some(Boolean));
-  // 合同授業：主学級(cls)が選ばれている時だけ、追加クラス(lessonJointClasses)を
-  // classNames配列として一緒に保存する。単一クラスのままなら classNames は
-  // 書き込まない（既存の単一クラス授業と完全に同じデータ形のまま＝後方互換）。
-  const jointClasses = (cls && lessonJointClasses.length) ? [cls, ...lessonJointClasses] : null;
+  // 合同授業：学級を2つ以上選んでいる時だけ classNames配列として保存する。
+  // 1つだけなら classNames は書き込まない（既存の単一クラス授業と完全に
+  // 同じデータ形のまま＝後方互換）。
+  const jointClasses = lessonSelectedClasses.length >= 2 ? [...lessonSelectedClasses] : null;
   // Record even without subject/class (free time, sub teaching, etc.).
   // Only delete when there is truly nothing to keep.
   if (!title && !note && !subject && !cls && !lessonPhotos.length && !hasHw) {
@@ -2594,8 +2594,8 @@ function openMoveLessonPicker() {
 }
 
 function collectLessonFromForm() {
-  const cls = document.getElementById('lessonClass').value;
-  const jointClasses = (cls && lessonJointClasses.length) ? [cls, ...lessonJointClasses] : null;
+  const cls = lessonSelectedClasses[0] || '';
+  const jointClasses = lessonSelectedClasses.length >= 2 ? [...lessonSelectedClasses] : null;
   const out = {
     subjectId: document.getElementById('lessonSubject').value,
     className: cls,
@@ -3035,65 +3035,61 @@ function populateClassSelect(ensure) {
   }
 }
 
-/* ── 合同授業：主学級に加えて他のクラスも選べるチップ＋ポップオーバー ──
-   #lessonClass（単一select、既存のまま不変）とは別に、lessonJointClasses
-   （配列）を横のチップ表示で管理する。保存時は saveLessonModal 側で
-   [primary, ...joint] を classNames として書き込む（primaryが空なら
-   joint選択自体を無効化する＝主学級が先）。 */
-function renderJointClassUI() {
-  const wrap = document.getElementById('lmJointClassWrap');
-  if (!wrap) return;
-  const primary = document.getElementById('lessonClass')?.value || '';
-
-  // 主学級と重複していたら除去（主学級を後から変えた場合の整合性維持）
-  lessonJointClasses = lessonJointClasses.filter(cn => cn && cn !== primary);
-
-  const chips = document.getElementById('lmJointChips');
-  const toggleBtn = document.getElementById('lmJointToggleBtn');
-  if (toggleBtn) toggleBtn.disabled = !primary;
-
-  if (chips) {
-    chips.innerHTML = lessonJointClasses.map(cn => `
-      <span class="lm-joint-chip">${escHtml(cn)}<button type="button" class="lm-joint-chip-x" data-cls="${escHtml(cn)}" aria-label="${escHtml(cn)}を外す">✕</button></span>
-    `).join('');
-    chips.querySelectorAll('.lm-joint-chip-x').forEach(btn => btn.addEventListener('click', () => {
-      lessonJointClasses = lessonJointClasses.filter(cn => cn !== btn.dataset.cls);
-      renderJointClassUI();
-    }));
+/* ── 学級の複数選択（v11.24.1で改修）──────────────────────────
+   以前は「#lessonClassで1つ選ぶ → 別ボタンで追加クラスを足す」という
+   2段階の操作だったが分かりにくいとの指摘があり、最初から1つの
+   マルチセレクト欄（チップ＋チェックボックスのパネル）に統一した。
+   #lessonClass（ネイティブselect）はUI上は非表示のまま残し、
+   選択された学級の1つ目（先頭）を常にミラーしておく（既存の出席受付・
+   検索・進度表デフォルトなど、#lessonClass.valueに依存する箇所を
+   壊さないため）。値を変えたら 'change' イベントを発火させ、
+   それらの既存の配線をそのまま使い回す。 */
+function renderClassMultiUI() {
+  const hiddenSel = document.getElementById('lessonClass');
+  const primary = lessonSelectedClasses[0] || '';
+  if (hiddenSel && hiddenSel.value !== primary) {
+    hiddenSel.value = primary;
+    hiddenSel.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  const panel = document.getElementById('lmJointPanel');
-  if (panel && !panel.hidden) renderJointClassPanelOptions(primary);
+  const btn = document.getElementById('lmClassMultiBtn');
+  if (btn) {
+    btn.innerHTML = lessonSelectedClasses.length
+      ? lessonSelectedClasses.map(cn => `<span class="lm-class-chip">${escHtml(cn)}</span>`).join('')
+      : `<span class="lm-class-placeholder">学級を選ぶ（複数選択可）</span>`;
+  }
+
+  const panel = document.getElementById('lmClassPanel');
+  if (panel && !panel.hidden) renderClassMultiPanelOptions();
 }
 
-function renderJointClassPanelOptions(primary) {
-  const panel = document.getElementById('lmJointPanel');
+function renderClassMultiPanelOptions() {
+  const panel = document.getElementById('lmClassPanel');
   if (!panel) return;
   const groups = allClassesGrouped();
   panel.innerHTML = groups.map(g => `
     <div class="lm-joint-group">
       <div class="lm-joint-group-label">${escHtml(g.schoolName)}</div>
-      ${g.options.filter(o => o.value !== primary).map(o => `
+      ${g.options.map(o => `
         <label class="lm-joint-opt">
-          <input type="checkbox" value="${escHtml(o.value)}" ${lessonJointClasses.includes(o.value) ? 'checked' : ''}>
+          <input type="checkbox" value="${escHtml(o.value)}" ${lessonSelectedClasses.includes(o.value) ? 'checked' : ''}>
           ${escHtml(o.label)}
         </label>
       `).join('')}
     </div>
-  `).join('') || '<div class="lm-joint-empty">他に学級がありません</div>';
+  `).join('') || '<div class="lm-joint-empty">学級がまだ登録されていません</div>';
   panel.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.addEventListener('change', () => {
-    if (cb.checked) { if (!lessonJointClasses.includes(cb.value)) lessonJointClasses.push(cb.value); }
-    else lessonJointClasses = lessonJointClasses.filter(cn => cn !== cb.value);
-    renderJointClassUI();
+    if (cb.checked) { if (!lessonSelectedClasses.includes(cb.value)) lessonSelectedClasses.push(cb.value); }
+    else lessonSelectedClasses = lessonSelectedClasses.filter(cn => cn !== cb.value);
+    renderClassMultiUI();
   }));
 }
 
-function toggleJointClassPanel() {
-  const panel = document.getElementById('lmJointPanel');
-  const primary = document.getElementById('lessonClass')?.value || '';
-  if (!panel || !primary) return;
+function toggleClassMultiPanel() {
+  const panel = document.getElementById('lmClassPanel');
+  if (!panel) return;
   const opening = panel.hidden;
-  if (opening) renderJointClassPanelOptions(primary);
+  if (opening) renderClassMultiPanelOptions();
   panel.hidden = !opening;
 }
 
@@ -4112,42 +4108,14 @@ function renderRecurringList() {
   list.querySelectorAll('.recurring-item-del').forEach(btn => btn.addEventListener('click', () => deleteRecurringTodo(btn.dataset.id)));
 }
 
+/* 繰り返しToDoの「管理」モーダル（v11.24.1：追加はToDo入力欄のチェックボックスに
+   統合したので、このモーダルは一覧の確認・削除だけを担う）。 */
 function openRecurringModal() {
   renderRecurringList();
-  const q = i => document.getElementById(i);
-  q('recurringText').value = '';
-  q('recurringTag').value = '';
-  q('recurringType').value = 'weekly';
-  q('recurringWeekday').value = String(new Date().getDay());
-  q('recurringMonthDay').value = '1';
-  updateRecurringTypeFields();
-  q('recurringModalBackdrop')?.removeAttribute('hidden');
+  document.getElementById('recurringModalBackdrop')?.removeAttribute('hidden');
 }
 function closeRecurringModal() {
   document.getElementById('recurringModalBackdrop')?.setAttribute('hidden', '');
-}
-function updateRecurringTypeFields() {
-  const type = document.getElementById('recurringType')?.value;
-  document.getElementById('recurringWeekdayWrap')?.toggleAttribute('hidden', type !== 'weekly');
-  document.getElementById('recurringMonthDayWrap')?.toggleAttribute('hidden', type !== 'monthly');
-}
-function addRecurringTodoFromForm() {
-  const q = i => document.getElementById(i);
-  const text = (q('recurringText')?.value || '').trim();
-  if (!text) { q('recurringText')?.focus(); return; }
-  const type = q('recurringType')?.value || 'weekly';
-  const tags = (q('recurringTag')?.value || '').split(/[,、\s#]+/).map(s => s.trim()).filter(Boolean);
-  const repeat = type === 'weekly'
-    ? { type: 'weekly', weekday: Number(q('recurringWeekday')?.value || 0) }
-    : { type: 'monthly', day: Math.min(31, Math.max(1, Number(q('recurringMonthDay')?.value || 1))) };
-  state.recurringTodos.push({ id: 'recur_' + uid(), text, tags, repeat, createdAt: Date.now() });
-  ensureRecurringTodoInstances();
-  save();
-  q('recurringText').value = '';
-  q('recurringTag').value = '';
-  renderRecurringList();
-  renderTodoBoard();
-  showToast('繰り返しToDoを追加しました');
 }
 async function deleteRecurringTodo(id) {
   if (!await customConfirm('この繰り返しToDoを削除しますか?（すでに作られたToDo自体は残ります）')) return;
@@ -4161,9 +4129,31 @@ function composeAddTodo() {
   const textEl = document.getElementById('todoComposeText');
   const tagEl  = document.getElementById('todoComposeTag');
   const dateEl = document.getElementById('todoComposeDate');
+  const recurCheck = document.getElementById('todoComposeRecurCheck');
   const text = (textEl?.value || '').trim();
   if (!text) { textEl?.focus(); return; }
   const tags = (tagEl?.value || '').split(/[,、\s#]+/).map(s => s.trim()).filter(Boolean);
+
+  // 「🔁 繰り返す」にチェックが入っていれば、通常のToDoではなく繰り返しルールとして登録する
+  // （v11.24.1：以前の別ボタン→別モーダルの2段階操作から、追加フォームに統合した）。
+  if (recurCheck?.checked) {
+    const type = document.getElementById('todoComposeRecurType')?.value || 'weekly';
+    const repeat = type === 'weekly'
+      ? { type: 'weekly', weekday: Number(document.getElementById('todoComposeRecurWeekday')?.value || 0) }
+      : { type: 'monthly', day: Math.min(31, Math.max(1, Number(document.getElementById('todoComposeRecurDay')?.value || 1))) };
+    state.recurringTodos.push({ id: 'recur_' + uid(), text, tags, repeat, createdAt: Date.now() });
+    ensureRecurringTodoInstances();
+    save();
+    if (textEl) textEl.value = '';
+    recurCheck.checked = false;
+    updateTodoComposeRecurUI();
+    renderTodoBoard();
+    renderTodoTagOptions();
+    showToast('繰り返しToDoを追加しました');
+    textEl?.focus();
+    return;
+  }
+
   const due  = dateEl?.value || '';
   state.todos.push({ id: uid(), text, done: false, due, tags, createdAt: Date.now() });
   save();
@@ -4173,6 +4163,21 @@ function composeAddTodo() {
   renderTodoBoard();
   renderTodoTagOptions();
   textEl?.focus();
+}
+
+/* 追加フォームの「🔁 繰り返す」チェック状態に応じて、締切日欄と繰り返し設定欄の
+   表示を切り替える（繰り返すToDoに一回限りの締切日は意味を持たないため）。 */
+function updateTodoComposeRecurUI() {
+  const checked = document.getElementById('todoComposeRecurCheck')?.checked;
+  document.getElementById('todoComposeRecurFields')?.toggleAttribute('hidden', !checked);
+  const dateEl = document.getElementById('todoComposeDate');
+  if (dateEl) dateEl.disabled = !!checked;
+  updateTodoComposeRecurTypeUI();
+}
+function updateTodoComposeRecurTypeUI() {
+  const type = document.getElementById('todoComposeRecurType')?.value || 'weekly';
+  document.getElementById('todoComposeRecurWeekday')?.toggleAttribute('hidden', type !== 'weekly');
+  document.getElementById('todoComposeRecurMonthWrap')?.toggleAttribute('hidden', type !== 'monthly');
 }
 
 function toggleTodo(id) {
@@ -8982,12 +8987,12 @@ function bindEvents() {
 
   ['lessonTitle', 'lessonNote'].forEach(id => q(id)?.addEventListener('input', scheduleAutosave));
   ['lessonSubject', 'lessonClass'].forEach(id => q(id)?.addEventListener('change', scheduleAutosave));
-  q('lessonClass')?.addEventListener('change', () => { if (_lmDate != null) renderLessonAttendance(_lmDate, _lmPeriod); renderJointClassUI(); });
-  q('lmJointToggleBtn')?.addEventListener('click', toggleJointClassPanel);
+  q('lessonClass')?.addEventListener('change', () => { if (_lmDate != null) renderLessonAttendance(_lmDate, _lmPeriod); });
+  q('lmClassMultiBtn')?.addEventListener('click', toggleClassMultiPanel);
   document.addEventListener('click', e => {
-    const panel = q('lmJointPanel');
+    const panel = q('lmClassPanel');
     if (!panel || panel.hidden) return;
-    if (e.target.closest('#lmJointPanel') || e.target.closest('#lmJointToggleBtn')) return;
+    if (e.target.closest('#lmClassPanel') || e.target.closest('#lmClassMultiBtn')) return;
     panel.hidden = true;
   });
 
@@ -9152,12 +9157,12 @@ function bindEvents() {
   q('todoEditSave')?.addEventListener('click', saveTodoEdit);
   q('todoEditCancel')?.addEventListener('click', closeTodoEdit);
 
-  /* ── 繰り返しToDo（v11.24.0）── */
+  /* ── 繰り返しToDo（v11.24.1：追加はToDo入力欄に統合、モーダルは管理専用）── */
+  q('todoComposeRecurCheck')?.addEventListener('change', updateTodoComposeRecurUI);
+  q('todoComposeRecurType')?.addEventListener('change', updateTodoComposeRecurTypeUI);
   q('todoRecurringBtn')?.addEventListener('click', openRecurringModal);
   q('recurringModalClose')?.addEventListener('click', closeRecurringModal);
   q('recurringCancelBtn')?.addEventListener('click', closeRecurringModal);
-  q('recurringAddBtn')?.addEventListener('click', addRecurringTodoFromForm);
-  q('recurringType')?.addEventListener('change', updateRecurringTypeFields);
   q('recurringModalBackdrop')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeRecurringModal(); });
   q('todoEditBackdrop')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeTodoEdit(); });
   ['rcpDate','rcpPeriod','rcpClass'].forEach(id => q(id)?.addEventListener('change', renderReceptionLists));
