@@ -520,7 +520,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.25.0';
+const APP_VERSION = '11.25.1';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -4392,10 +4392,12 @@ function lessonsOfSubjectClass(subjectId, className) {
 
 let _progressGrade = null;
 let _progressSubject = null;
+let _progressUnit = null;   // v11.25.1: 単元で絞り込むビュー。null/'' = 全体表示
 
 function renderProgressTable() {
   const gradeSel = document.getElementById('progressGrade');
   const subjSel  = document.getElementById('progressSubjectSel');
+  const unitSel  = document.getElementById('progressUnitSel');
   const container = document.getElementById('progressContent');
   if (!container) return;
 
@@ -4444,14 +4446,38 @@ function renderProgressTable() {
   const gradeClasses = classes.filter(c => gradeOfClass(c) === _progressGrade)
     .sort((a,b)=>a.localeCompare(b,'ja',{numeric:true}));
 
-  // build per-class ordered lesson lists
-  const perClass = gradeClasses.map(c => ({ name: c, lessons: lessonsOfSubjectClass(_progressSubject, c) }));
-  const maxN = Math.max(0, ...perClass.map(pc => pc.lessons.length));
+  // build per-class ordered lesson lists（絞り込み前の元データ）
+  const perClassAll = gradeClasses.map(c => ({ name: c, lessons: lessonsOfSubjectClass(_progressSubject, c) }));
 
   if (!gradeClasses.length) {
     container.innerHTML = `<div class="student-empty"><p>${_progressGrade}年の学級がありません。</p></div>`;
+    if (unitSel) unitSel.innerHTML = '<option value="">全体</option>';
     return;
   }
+
+  // 単元で絞り込むビュー（v11.25.1）：この学年・教科で実際に使われている単元名を、
+  // 最初に登場した日付が早い順に並べてプルダウンにする。選ぶと、各クラスの
+  // その単元のコマだけを抜き出し、コマ番号もその単元内で1から振り直す
+  // （「1〜3組の“分数のひき算”だけで何時間目まで進んでるか」を見たい、という要望）。
+  const unitFirstDate = new Map();
+  perClassAll.forEach(pc => pc.lessons.forEach(item => {
+    if (!item.l.unit) return;
+    const cur = unitFirstDate.get(item.l.unit);
+    if (!cur || item.date < cur) unitFirstDate.set(item.l.unit, item.date);
+  }));
+  const unitList = [...unitFirstDate.keys()].sort((a, b) => unitFirstDate.get(a).localeCompare(unitFirstDate.get(b)));
+  if (_progressUnit && !unitList.includes(_progressUnit)) _progressUnit = null;   // 絞り込み中の単元が居なくなった（学年・教科を変えた等）
+
+  if (unitSel) {
+    unitSel.innerHTML = `<option value="">全体</option>` + unitList.map(u => `<option value="${escHtml(u)}">${escHtml(u)}</option>`).join('');
+    unitSel.value = _progressUnit || '';
+    unitSel.disabled = !unitList.length;
+  }
+
+  const perClass = _progressUnit
+    ? perClassAll.map(pc => ({ name: pc.name, lessons: pc.lessons.filter(item => item.l.unit === _progressUnit) }))
+    : perClassAll;
+  const maxN = Math.max(0, ...perClass.map(pc => pc.lessons.length));
 
   // header
   let head = `<th class="pc-rownum"></th>` + perClass.map(pc => {
@@ -4471,8 +4497,10 @@ function renderProgressTable() {
       const hasPhoto = !!(item.l.photos?.length);
       // 単元の区切り（v11.25.0）：このクラス内で、直前のコマと単元名が変わった
       // 瞬間にラベルを出す。時間数の多い教科でも単元単位で目を止めやすくする。
+      // 単元で絞り込み中（v11.25.1）は全コマが同じ単元なので、このラベルは出さない
+      // （代わりに表の上の見出しに単元名を出す）。
       const prevItem = pc.lessons[i - 1];
-      const unitChanged = item.l.unit && item.l.unit !== prevItem?.l.unit;
+      const unitChanged = !_progressUnit && item.l.unit && item.l.unit !== prevItem?.l.unit;
       // 終わったコマの色分け（v11.25.0）：日付がすでに今日より前なら「済み」扱いにする。
       const isDone = item.date < todayStr;
       return `<td class="pc-cell${isDone ? ' pc-cell--done' : ''}">
@@ -4487,11 +4515,11 @@ function renderProgressTable() {
     }).join('') + '</tr>';
   }
   if (maxN === 0) {
-    rows = `<tr><td class="pc-rownum"></td><td colspan="${gradeClasses.length}" style="text-align:center;color:var(--gray-400);padding:24px;">この教科の記録がまだありません</td></tr>`;
+    rows = `<tr><td class="pc-rownum"></td><td colspan="${gradeClasses.length}" style="text-align:center;color:var(--gray-400);padding:24px;">${_progressUnit ? `「${escHtml(_progressUnit)}」の記録がまだありません` : 'この教科の記録がまだありません'}</td></tr>`;
   }
 
   container.innerHTML = `
-    <div class="progress-compare-info">${_progressGrade}年・${escHtml(subjName)}　進度比較</div>
+    <div class="progress-compare-info">${_progressGrade}年・${escHtml(subjName)}${_progressUnit ? `　単元：${escHtml(_progressUnit)}` : ''}　進度比較</div>
     <div class="progress-compare-wrap">
       <table class="progress-compare">
         <thead><tr>${head}</tr></thead>
@@ -8362,6 +8390,13 @@ const CHANGELOG = [
       '成績の点数入力で、Enterキーによるセル移動を「下へ」「右へ」から選べるようになりました（設定 → 授業）。紙の点数をタップせずに連続入力できます。',
     ],
   },
+  {
+    version: '11.25.1',
+    title: '進度表：単元だけで絞り込んで見られるように',
+    items: [
+      '進度表に「単元」の絞り込みメニューを追加しました。単元を選ぶと、各クラスがその単元だけで何コマ目まで進んでいるかを見られます（コマ番号もその単元の中で1から数え直します）。',
+    ],
+  },
 ];
 
 function compareVersions(a, b) {
@@ -9252,8 +9287,9 @@ function bindEvents() {
   q('forgotItemsModalBackdrop')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeForgotItemsModal(); });
 
   /* ── Progress ── */
-  q('progressGrade')?.addEventListener('change', e => { _progressGrade = parseInt(e.target.value, 10); state.settings.progressGrade = _progressGrade; save(); renderProgressTable(); });
-  q('progressSubjectSel')?.addEventListener('change', e => { _progressSubject = e.target.value; state.settings.progressSubject = _progressSubject; save(); renderProgressTable(); });
+  q('progressGrade')?.addEventListener('change', e => { _progressGrade = parseInt(e.target.value, 10); _progressUnit = null; state.settings.progressGrade = _progressGrade; save(); renderProgressTable(); });
+  q('progressSubjectSel')?.addEventListener('change', e => { _progressSubject = e.target.value; _progressUnit = null; state.settings.progressSubject = _progressSubject; save(); renderProgressTable(); });
+  q('progressUnitSel')?.addEventListener('change', e => { _progressUnit = e.target.value || null; renderProgressTable(); });
 
   /* ── Photos ── */
   q('photoFileInput')?.addEventListener('change', e => {
