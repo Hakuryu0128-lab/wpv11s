@@ -520,7 +520,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.24.1';
+const APP_VERSION = '11.25.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -640,6 +640,7 @@ const state = {
     lockPin: '',             // 設定中のPIN（数字文字列。''=未設定）
     lockDigits: 4,           // 4 | 6
     lockTimeoutMin: 5,       // 無操作タイムアウト（分）1|3|5|10|30
+    evalEnterDirection: 'down', // 成績入力：Enterキーで移動する方向 down|right（v11.25.0）
   },
   activeView: 'weekly',
   eventsYear: new Date().getFullYear(),
@@ -2396,6 +2397,8 @@ function openLessonModal(key, date, period) {
 
   document.getElementById('lessonTitle').value = lesson.title || '';
   document.getElementById('lessonNote').value  = lesson.note  || '';
+  document.getElementById('lessonUnit').value  = lesson.unit  || '';
+  populateLessonUnitList();
 
   lessonTags   = [...(lesson.tags   || [])];
   lessonPhotos = [...(lesson.photos || [])];
@@ -2516,6 +2519,7 @@ function saveLessonModal() {
   const note    = document.getElementById('lessonNote').value;
   const subject = document.getElementById('lessonSubject').value;
   const cls     = document.getElementById('lessonClass').value;
+  const unit    = document.getElementById('lessonUnit').value.trim();
 
   const prev = state.lessons[currentLessonKey] || {};
   const hasHw = !!(prev.hwPages?.some(Boolean));
@@ -2535,6 +2539,8 @@ function saveLessonModal() {
     };
     if (jointClasses) state.lessons[currentLessonKey].classNames = jointClasses;
     else delete state.lessons[currentLessonKey].classNames;
+    if (unit) state.lessons[currentLessonKey].unit = unit;
+    else delete state.lessons[currentLessonKey].unit;
   }
   save();
   renderWeekGrid();
@@ -2607,6 +2613,8 @@ function collectLessonFromForm() {
     mode:      currentMode,
   };
   if (jointClasses) out.classNames = jointClasses;
+  const unit = document.getElementById('lessonUnit').value.trim();
+  if (unit) out.unit = unit;
   return out;
 }
 
@@ -2685,7 +2693,7 @@ function runSearch(query, overlay) {
   const results = [];
   // lessons
   Object.entries(state.lessons).forEach(([key, l]) => {
-    const text = `${getSubjectById(l.subjectId)?.name||''} ${lessonClassNames(l).join(' ')} ${l.title||''} ${l.note||''}`;
+    const text = `${getSubjectById(l.subjectId)?.name||''} ${lessonClassNames(l).join(' ')} ${l.title||''} ${l.unit||''} ${l.note||''}`;
     if (text.toLowerCase().includes(q)) {
       const [dateStr, period] = key.split('_');
       results.push({ type:'授業', label:`${l.title || getSubjectById(l.subjectId)?.name || '授業'}`, sub:`${dateStr} ${period}限`, action:()=>{ state.currentWeekStart = getWeekStart(new Date(dateStr+'T00:00:00')); renderWeekTitle(); renderWeekGrid(); switchView('weekly'); } });
@@ -3008,6 +3016,16 @@ function populateSubjectSelect() {
     opt.value = s.id; opt.textContent = s.name;
     sel.appendChild(opt);
   });
+}
+
+/* 単元入力の候補（datalist）：既存の授業に入っている単元名を重複無しで集めて出す
+   （教科をまたいで集めても実害は無いので、シンプルに全教科分から）。 */
+function populateLessonUnitList() {
+  const list = document.getElementById('lessonUnitList');
+  if (!list) return;
+  const units = new Set();
+  Object.values(state.lessons).forEach(l => { if (l.unit) units.add(l.unit); });
+  list.innerHTML = [...units].sort((a, b) => a.localeCompare(b, 'ja')).map(u => `<option value="${escHtml(u)}"></option>`).join('');
 }
 
 function populateClassSelect(ensure) {
@@ -4442,6 +4460,7 @@ function renderProgressTable() {
   }).join('');
 
   // rows: 1..maxN
+  const todayStr = formatDate(new Date());
   let rows = '';
   for (let i = 0; i < maxN; i++) {
     rows += `<tr><td class="pc-rownum">${i + 1}</td>` + perClass.map(pc => {
@@ -4450,8 +4469,15 @@ function renderProgressTable() {
       const title = item.l.title || getSubjectById(item.l.subjectId)?.name || '';
       const md = item.date.slice(5).replace('-', '/');
       const hasPhoto = !!(item.l.photos?.length);
-      // is this class behind the leader at this row?
-      return `<td class="pc-cell"><button class="pc-lesson" data-key="${escHtml(item.key)}">
+      // 単元の区切り（v11.25.0）：このクラス内で、直前のコマと単元名が変わった
+      // 瞬間にラベルを出す。時間数の多い教科でも単元単位で目を止めやすくする。
+      const prevItem = pc.lessons[i - 1];
+      const unitChanged = item.l.unit && item.l.unit !== prevItem?.l.unit;
+      // 終わったコマの色分け（v11.25.0）：日付がすでに今日より前なら「済み」扱いにする。
+      const isDone = item.date < todayStr;
+      return `<td class="pc-cell${isDone ? ' pc-cell--done' : ''}">
+        ${unitChanged ? `<div class="pc-unit-label">${escHtml(item.l.unit)}</div>` : ''}
+        <button class="pc-lesson${isDone ? ' pc-lesson--done' : ''}" data-key="${escHtml(item.key)}">
         <span class="pc-lesson-title">${escHtml(title)}</span>
         <span class="pc-lesson-date">
           <span>${md}・${item.period === 'after' ? '放課後' : item.period + '限'}</span>
@@ -6243,6 +6269,27 @@ function renderEvaluation() {
     save();
     evtUpdateRowSummary(inp.closest('tr'), sid, subjectId, columns, usedVp, rule);
   }));
+  // Enterキーでのセル移動（v11.25.0）：紙の成績表を上から連続入力する時にタップしなくて
+  // 済むように。「下へ」＝同じ項目で次の生徒へ、「右へ」＝同じ生徒で次の項目へ。
+  // 端まで来たら、次の生徒の先頭／次の項目の先頭にそれぞれ折り返す。
+  container.querySelectorAll('.evt-input').forEach(inp => inp.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const sIdx = students.findIndex(st => st.id === inp.dataset.sid);
+    const cIdx = columns.findIndex(c => c.id === inp.dataset.col);
+    if (sIdx < 0 || cIdx < 0) return;
+    let nextSIdx = sIdx, nextCIdx = cIdx;
+    if (state.settings.evalEnterDirection === 'right') {
+      nextCIdx = cIdx + 1;
+      if (nextCIdx >= columns.length) { nextCIdx = 0; nextSIdx = sIdx + 1; }
+    } else {
+      nextSIdx = sIdx + 1;
+      if (nextSIdx >= students.length) { nextSIdx = 0; nextCIdx = cIdx + 1; }
+    }
+    if (nextSIdx >= students.length || nextCIdx >= columns.length) return;   // 最後のセルなら何もしない
+    const next = container.querySelector(`.evt-input[data-sid="${students[nextSIdx].id}"][data-col="${columns[nextCIdx].id}"]`);
+    if (next) { next.focus(); next.select(); }
+  }));
 }
 
 function navigateAttendanceMonth(delta) {
@@ -6672,6 +6719,7 @@ function renderSettings() {
   if (s('schoolName'))     s('schoolName').value      = state.settings.schoolName;
   if (s('periodsCount'))   s('periodsCount').value    = state.settings.periodsCount;
   if (s('lessonDuration')) s('lessonDuration').value  = state.settings.lessonDuration || 50;
+  if (s('evalEnterDirection')) s('evalEnterDirection').value = state.settings.evalEnterDirection || 'down';
 
   renderSubjectColorGrid();
   renderAppearanceSeg();
@@ -6789,6 +6837,7 @@ function saveSettings() {
   state.settings.schoolName     = s('schoolName')?.value.trim()    || '';
   state.settings.periodsCount = parseInt(s('periodsCount')?.value || DEFAULT_PERIODS, 10);
   state.settings.lessonDuration = parseInt(s('lessonDuration')?.value || 50, 10);
+  state.settings.evalEnterDirection = s('evalEnterDirection')?.value === 'right' ? 'right' : 'down';
   save();
   renderWeekGrid();
   showToast('設定を保存しました');
@@ -8304,6 +8353,15 @@ const CHANGELOG = [
       '新しい「提出物」ページを追加しました。名簿と連携して、生徒をタップするだけで提出チェックができます。提出日は自動で記録され、締切は後から編集できます。',
     ],
   },
+  {
+    version: '11.25.0',
+    title: '進度表の単元区切り・過去コマの色分け／成績のEnterキー移動',
+    items: [
+      '進度表で、単元ごとに区切りが分かるようになりました。授業を記録するときに「単元」を入力しておくと、単元が変わった最初のコマにラベルが出ます。',
+      '進度表で、今日より前の（もう終わった）コマの色が変わるようになりました。進み具合がひと目でわかります。',
+      '成績の点数入力で、Enterキーによるセル移動を「下へ」「右へ」から選べるようになりました（設定 → 授業）。紙の点数をタップせずに連続入力できます。',
+    ],
+  },
 ];
 
 function compareVersions(a, b) {
@@ -8316,8 +8374,13 @@ function compareVersions(a, b) {
   return 0;
 }
 function pendingChangelogEntries() {
+  // v11.25.0：複数バージョン分をまとめて出すのではなく、常に「最新バージョンの
+  // ログ1件だけ」を自動ポップアップで見せる（例：v11.22を使っていた人がv11.25に
+  // 上がった時も、v11.25のログだけが出る＝間の古いログは出さない）。
   const last = state.settings.lastSeenVersion || '0';
-  return CHANGELOG.filter(c => compareVersions(c.version, last) > 0).sort((a, b) => compareVersions(a.version, b.version));
+  const latest = [...CHANGELOG].sort((a, b) => compareVersions(b.version, a.version))[0];
+  if (!latest || compareVersions(latest.version, last) <= 0) return [];
+  return [latest];
 }
 function renderChangelogModal(entries, { markSeen }) {
   const backdrop = document.getElementById('changelogModalBackdrop');

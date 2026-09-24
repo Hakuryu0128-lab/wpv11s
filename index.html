@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.24.1" />
+  <link rel="stylesheet" href="styles.css?v=11.25.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -791,6 +791,14 @@
                   </select>
                 </div>
                 <p class="settings-hint">各時限の開始時刻は週案画面の「1」の下の欄から設定できます。現在時刻の赤い線はこの設定に連動します。</p>
+                <div class="settings-row">
+                  <label for="evalEnterDirection">成績入力：Enterキーで移動する方向</label>
+                  <select id="evalEnterDirection" class="settings-input">
+                    <option value="down">下へ（同じ項目で次の生徒へ）</option>
+                    <option value="right">右へ（同じ生徒で次の項目へ）</option>
+                  </select>
+                </div>
+                <p class="settings-hint">評価タブの点数入力で、セルをタップしなくてもEnterキーだけで次に進めます。</p>
               </section>
 
               <section class="settings-section hidden" data-cat="theme">
@@ -1028,6 +1036,11 @@
         <div class="lm-field">
           <label for="lessonTitle">授業タイトル</label>
           <input type="text" id="lessonTitle" class="lm-input" placeholder="例: 分数の足し算" />
+        </div>
+        <div class="lm-field">
+          <label for="lessonUnit">単元（任意）</label>
+          <input type="text" id="lessonUnit" class="lm-input" list="lessonUnitList" placeholder="例: 分数のたし算とひき算" />
+          <datalist id="lessonUnitList"></datalist>
         </div>
         <div class="lm-field">
           <label>タグ</label>
@@ -1476,6 +1489,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.24.1"></script>
+<script src="app.js?v=11.25.0"></script>
 </body>
 </html>
