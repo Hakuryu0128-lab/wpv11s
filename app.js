@@ -520,7 +520,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.25.1';
+const APP_VERSION = '11.26.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -1749,8 +1749,10 @@ function renderWeekTitle() {
   const start = state.currentWeekStart;
   const end = addDays(start, 4); // Mon–Fri: +4 days = Friday
   const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
-  document.getElementById('weekTitle').textContent =
-    `${start.getFullYear()}年 ${fmt(start)}（月）〜 ${fmt(end)}（金）`;
+  // v11.26.0：スマホ縦画面では短い表記に切り替える（CSSで .wt-full / .wt-short を出し分け）
+  document.getElementById('weekTitle').innerHTML =
+    `<span class="wt-full">${start.getFullYear()}年 ${fmt(start)}（月）〜 ${fmt(end)}（金）</span>` +
+    `<span class="wt-short">${fmt(start)}〜${fmt(end)}</span>`;
 }
 
 /* ── In-app calendar popover ─────────────────────────────── */
@@ -1804,6 +1806,7 @@ function shiftCalMonth(delta) {
 
 function pickCalendarDate(dateStr) {
   state.currentWeekStart = getWeekStart(new Date(dateStr + 'T00:00:00'));
+  focusMobileDayOf(new Date(dateStr + 'T00:00:00'));   // スマホ1日表示：選んだ日の曜日を出す
   renderWeekTitle();
   renderWeekGrid();
   if (state.activeView === 'print') { updatePrintWeekRange(); renderPrintPreview(); }
@@ -1896,6 +1899,7 @@ function appendLessonCell(grid, date, period, slim) {
 function flashLessonCell(key) {
   const grid = document.getElementById('weekGrid');
   if (!grid) return;
+  focusMobileDayOf(new Date(String(key).split('_')[0] + 'T00:00:00'));   // スマホ1日表示：その日の曜日を出す
   const cell = grid.querySelector('.grid-cell[data-key="' + key + '"]');
   if (!cell) return;
   cell.classList.remove('lesson-flash'); void cell.offsetWidth; cell.classList.add('lesson-flash');
@@ -2200,6 +2204,15 @@ function renderWeekGrid() {
   grid.appendChild(asLabel);
   days.forEach(date => appendLessonCell(grid, date, 'after', true));
 
+  /* v11.26.0：スマホ縦画面の1日表示用。どの行も「ラベル＋月〜金」の6セルなので、
+     並び順(i%6)から曜日番号を付ける。時刻バー(.nbar)を足す前にやること。 */
+  Array.from(grid.children).forEach((el, i) => {
+    const c = i % 6;
+    if (c > 0) el.dataset.day = String(c - 1);
+  });
+  renderDayTabs();
+  applyMobileDay();
+
   /* Current-time indicator bar */
   renderCurrentTimeBar(grid, periods);
 
@@ -2214,6 +2227,59 @@ function renderWeekGrid() {
     });
     inp.addEventListener('click', e => e.stopPropagation());
   });
+}
+
+/* ── スマホ縦画面：週案の1日表示（v11.26.0） ─────────────────────
+   選択中の曜日(0=月〜4=金)は _mobDay の1か所だけで持つ。週が変わったら
+   既定（今週なら今日、それ以外・土日は月曜）に戻す。判定は「週の開始日」で
+   行うので、週を動かす入口がいくつあっても取りこぼさない。
+   PC・iPadでは data-day を付けるだけで、CSSが効かないので見た目は変わらない。 */
+let _mobDay = 0;
+let _mobWeekKey = '';
+function defaultMobileDay() {
+  const diff = Math.floor((new Date() - state.currentWeekStart) / 86400000);
+  return (diff >= 0 && diff <= 4) ? diff : 0;
+}
+function applyMobileDay() {
+  const grid = document.getElementById('weekGrid');
+  if (!grid) return;
+  const wk = formatDate(state.currentWeekStart);
+  if (_mobWeekKey !== wk) { _mobWeekKey = wk; _mobDay = defaultMobileDay(); }
+  grid.dataset.day = String(_mobDay);
+  document.querySelectorAll('#dayTabs .day-tab').forEach(b => {
+    const on = parseInt(b.dataset.day, 10) === _mobDay;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+function renderDayTabs() {
+  const box = document.getElementById('dayTabs');
+  if (!box) return;
+  box.innerHTML = [0, 1, 2, 3, 4].map(d => {
+    const dt = addDays(state.currentWeekStart, d);
+    return `<button type="button" class="day-tab${isToday(dt) ? ' today' : ''}" data-day="${d}" ` +
+           `aria-label="${DAYS[d]}曜日 ${dt.getMonth() + 1}月${dt.getDate()}日">` +
+           `<span class="dt-name">${DAYS[d]}</span><span class="dt-date">${dt.getDate()}</span></button>`;
+  }).join('');
+}
+function setMobileDay(d) {
+  _mobWeekKey = formatDate(state.currentWeekStart);
+  _mobDay = d;
+  applyMobileDay();
+}
+/* 指定した日が表示中の週に入っていれば、その曜日を選ぶ（検索・出席・カレンダーからのジャンプ用）。
+   state.currentWeekStart を更新したあと、renderWeekGrid の前後どちらで呼んでもよい。 */
+function focusMobileDayOf(date) {
+  const idx = Math.round((date - state.currentWeekStart) / 86400000);
+  if (idx < 0 || idx > 4) return false;
+  setMobileDay(idx);
+  return true;
+}
+function updateHeaderViewTitle(viewId) {
+  const el = document.getElementById('headerViewTitle');
+  if (!el) return;
+  const nav = document.querySelector(`.nav-item[data-view="${viewId}"] .nav-label`);
+  el.textContent = nav ? nav.textContent : '';
 }
 
 /* Parse "HH:MM" → minutes since midnight */
@@ -2279,6 +2345,7 @@ function navigateWeek(delta) {
 
 function goToToday() {
   state.currentWeekStart = getWeekStart(new Date());
+  _mobWeekKey = '';   // スマホ1日表示：今日の曜日に戻す
   renderWeekTitle();
   renderWeekGrid();
   updateStats();
@@ -2318,6 +2385,7 @@ function switchView(viewId) {
   if (navEl) { navEl.classList.add('active'); navEl.setAttribute('aria-current', 'page'); }
   state.activeView = viewId;
   document.body.dataset.view = viewId;
+  updateHeaderViewTitle(viewId);   // スマホ縦画面：ヘッダーに今開いている機能名を出す
   if (viewId === 'import') updateStorageMeter();   // バックアップ画面で保存容量を更新
 
   // 一部の広い画面（ToDo/名簿/出席/評価/進度）では右パネルを畳んで広く使う
@@ -2696,7 +2764,7 @@ function runSearch(query, overlay) {
     const text = `${getSubjectById(l.subjectId)?.name||''} ${lessonClassNames(l).join(' ')} ${l.title||''} ${l.unit||''} ${l.note||''}`;
     if (text.toLowerCase().includes(q)) {
       const [dateStr, period] = key.split('_');
-      results.push({ type:'授業', label:`${l.title || getSubjectById(l.subjectId)?.name || '授業'}`, sub:`${dateStr} ${period}限`, action:()=>{ state.currentWeekStart = getWeekStart(new Date(dateStr+'T00:00:00')); renderWeekTitle(); renderWeekGrid(); switchView('weekly'); } });
+      results.push({ type:'授業', label:`${l.title || getSubjectById(l.subjectId)?.name || '授業'}`, sub:`${dateStr} ${period}限`, action:()=>{ state.currentWeekStart = getWeekStart(new Date(dateStr+'T00:00:00')); focusMobileDayOf(new Date(dateStr+'T00:00:00')); renderWeekTitle(); renderWeekGrid(); switchView('weekly'); } });
     }
   });
   // notes
@@ -3264,6 +3332,7 @@ function openPhotoViewer(items, index, maybeLessonKey) {
       const period = lessonKey.split('_')[1];
       const p = (period === 'after') ? 'after' : parseInt(period, 10);
       state.currentWeekStart = getWeekStart(new Date(date + 'T00:00:00'));
+      focusMobileDayOf(new Date(date + 'T00:00:00'));
       renderWeekTitle();
       renderWeekGrid();
       switchView('weekly');
@@ -3458,6 +3527,8 @@ function applyHwPickerColor(color) {
   save();
   hwSelectColor(_hwPickerCtx, color);   // そのスロットを選択状態にして再描画
   _hwPickerCtx = null; _hwPickerIdx = -1;
+  const inp = document.getElementById('hwColorInput');   // 使い終わったら画面外へ戻す（他のボタンを塞がない）
+  if (inp) { inp.style.left = '-100px'; inp.style.top = '-100px'; }
 }
 
 function openHwFullscreen() {
@@ -7171,6 +7242,8 @@ function getFocusable(el) {
 
 /* ── Sidebar ─────────────────────────────────────────────── */
 function openSidebar() {
+  document.getElementById('contextPanel')?.classList.remove('open');   // 右パネルが開いていたら閉じる
+  document.getElementById('contextToggleBtn')?.setAttribute('aria-expanded', 'false');
   document.getElementById('sidebar').classList.add('open');
   document.getElementById('sidebarOverlay')?.classList.add('open');
   document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded', 'true');
@@ -7189,6 +7262,7 @@ function toggleContextPanel() {
   if (!panel) return;
   const isMobile = window.innerWidth < 768;
   if (isMobile) {
+    closeSidebar();   // 左ドロワーが開いていたら閉じる（同時に2枚出さない）
     panel.classList.toggle('open');
     btn?.setAttribute('aria-expanded', panel.classList.contains('open') ? 'true' : 'false');
   } else {
@@ -8397,6 +8471,15 @@ const CHANGELOG = [
       '進度表に「単元」の絞り込みメニューを追加しました。単元を選ぶと、各クラスがその単元だけで何コマ目まで進んでいるかを見られます（コマ番号もその単元の中で1から数え直します）。',
     ],
   },
+  {
+    version: '11.26.0',
+    title: 'iPhoneなど、スマホの縦画面で使いやすくなりました',
+    items: [
+      'スマホの縦画面では、左上の「☰」から機能（週案・ToDo・名簿など）を切り替えられるようになりました。選ぶと自動で閉じます。',
+      '週案は1日ぶんを大きく表示し、画面下の「月・火・水・木・金」ボタンで曜日を切り替えます。開いたときは今日の曜日（土日は月曜）が表示されます。',
+      'iPadやパソコンの表示は今までと変わりません。',
+    ],
+  },
 ];
 
 function compareVersions(a, b) {
@@ -8945,6 +9028,7 @@ async function startApp() {
   applyAppearance(state.settings.appearance || 'light');
   // 初回は switchView を通らないため body[data-view] が未設定→週ナビが隠れる。明示設定。
   document.body.dataset.view = state.activeView || 'weekly';
+  updateHeaderViewTitle(state.activeView || 'weekly');
   renderWeekTitle();
   renderWeekGrid();
   updatePanelTodo();
@@ -9029,8 +9113,12 @@ function bindEvents() {
 
   /* ── Sidebar nav ── */
   document.querySelectorAll('.nav-item[data-view]').forEach(btn =>
-    btn.addEventListener('click', () => switchView(btn.dataset.view))
+    btn.addEventListener('click', () => { switchView(btn.dataset.view); closeSidebar(); })
   );
+  q('dayTabs')?.addEventListener('click', (e) => {
+    const b = e.target.closest('.day-tab');
+    if (b) setMobileDay(parseInt(b.dataset.day, 10));
+  });
   q('hamburgerBtn')?.addEventListener('click', openSidebar);
   q('sidebarCloseBtn')?.addEventListener('click', closeSidebar);
   q('sidebarOverlay')?.addEventListener('click', closeSidebar);

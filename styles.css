@@ -4398,6 +4398,113 @@ img { max-width: 100%; display: block; }
   .nav-label { font-size: 7px; }
 }
 
+/* ══════════════════════════════════════════════════════════
+   v11.26.0：スマホ縦画面（幅600px以下）専用レイアウト
+   ・左上☰で既存サイドバーを左ドロワー化／週案は1日表示＋下部の曜日ボタン
+   ・PC・iPad（幅601px以上）は一切変えない。必ずこの @media の中に閉じ込めること。
+   ・iPad mini縦(744px)がスマホ表示にならないよう、境界は767pxではなく600px。
+   ・上の max-height ブロックより後ろに置く（.nav-* の上書きに勝つため）。
+══════════════════════════════════════════════════════════ */
+.hamburger-btn, .day-tabs, .sidebar-overlay, .header-view-title { display: none; }
+.wt-short { display: none; }
+
+@media (max-width: 600px) {
+  /* ── ヘッダー ── */
+  .app-header { padding-left: 6px; padding-right: 6px; gap: 2px; }
+  .hamburger-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; flex-shrink: 0;
+    border-radius: var(--radius-sm); color: var(--gray-700);
+  }
+  .header-ver, .clock, .today-btn, .weather-temp, .weather-loc-inline { display: none !important; }
+  .header-right { gap: 0; }
+  .weather-btn { padding: 4px 6px; min-height: 36px; background: none; }
+  .week-nav { gap: 0; justify-content: center; min-width: 0; }
+  .week-nav-btn { width: 34px; height: 34px; }
+  .week-title { min-width: 0; font-size: 14px; padding: 5px 4px; }
+  .wt-full { display: none; }
+  .wt-short { display: inline; }
+  /* 週案以外：週ナビの代わりに機能名を出す */
+  body:not([data-view="weekly"]) .week-nav { display: none; }
+  body:not([data-view="weekly"]) .header-view-title {
+    display: block; flex: 1; min-width: 0; padding: 0 6px;
+    font-size: 16px; font-weight: 700; color: var(--gray-800);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* ── 左ドロワー（既存の #sidebar をそのまま使う） ── */
+  .sidebar-overlay {
+    display: block; position: fixed; inset: 0; z-index: 290;
+    background: rgba(15,23,42,.5);
+    opacity: 0; pointer-events: none;
+    transition: opacity var(--normal) var(--ease);
+  }
+  .sidebar-overlay.open { opacity: 1; pointer-events: auto; }
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; height: auto;
+    width: min(280px, 82vw); z-index: 300;
+    padding: env(safe-area-inset-top) 10px env(safe-area-inset-bottom);
+    overflow-x: hidden; overflow-y: auto; scrollbar-width: none;
+    transform: translateX(-100%);
+    transition: transform var(--normal) var(--ease);
+    box-shadow: none;
+  }
+  .sidebar::-webkit-scrollbar { display: none; }
+  .sidebar.open { transform: translateX(0); box-shadow: 8px 0 32px rgba(0,0,0,.35); }
+  .sidebar .sb-mark { height: 56px; margin-bottom: 4px; justify-content: flex-start; padding-left: 6px; }
+  .sidebar .sb-mark img { width: 34px; height: 34px; }
+  .sidebar .sb-section-label {
+    display: block; text-align: left; font-size: 11px; letter-spacing: 1px;
+    padding: 14px 8px 4px; color: rgba(255,255,255,.45);
+  }
+  .sidebar .nav-item {
+    flex-direction: row; justify-content: flex-start; align-items: center;
+    gap: 14px; min-height: 48px; padding: 8px 12px; font-size: 15px;
+  }
+  .sidebar .nav-icon { width: 24px; height: 24px; }
+  .sidebar .nav-label {
+    display: block; max-width: none; font-size: 15px; font-weight: 600;
+    letter-spacing: 0; text-align: left;
+  }
+  .sidebar .nav-item[data-tip]::after { display: none; }
+  .sidebar .nav-item:hover .nav-icon { transform: none; }
+
+  /* ── 右パネル：ヘッダーの高さにセーフエリア分を足す ── */
+  .context-panel { top: calc(var(--header-h) + env(safe-area-inset-top)); padding-bottom: env(safe-area-inset-bottom); }
+
+  /* ── 週案：1日表示 ── */
+  .week-grid { grid-template-columns: 38px minmax(0, 1fr); }
+  .week-grid[data-day="0"] > [data-day]:not([data-day="0"]),
+  .week-grid[data-day="1"] > [data-day]:not([data-day="1"]),
+  .week-grid[data-day="2"] > [data-day]:not([data-day="2"]),
+  .week-grid[data-day="3"] > [data-day]:not([data-day="3"]),
+  .week-grid[data-day="4"] > [data-day]:not([data-day="4"]) { display: none; }
+  .nbar { left: 38px; }
+
+  /* ── 下部：曜日ボタン（週案のときだけ） ── */
+  body[data-view="weekly"] .day-tabs {
+    display: flex; gap: 6px; flex-shrink: 0; z-index: 120;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--glass-card-border);
+    background: var(--glass-card-bg);
+    backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-card-blur)) saturate(var(--glass-card-saturate));
+  }
+  .day-tab {
+    flex: 1; min-height: 50px; border-radius: 14px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+    color: var(--gray-600); line-height: 1.15;
+    transition: background var(--fast), color var(--fast);
+  }
+  .day-tab .dt-name { font-size: 16px; font-weight: 800; }
+  .day-tab .dt-date { font-size: 11px; font-weight: 600; opacity: .75; }
+  .day-tab.today .dt-name { color: var(--brand); }
+  .day-tab.active { background: var(--brand); color: #fff; }
+  .day-tab.active .dt-name { color: #fff; }
+  /* 週案以外は下端をホームバーに潰されないよう余白だけ確保 */
+  body:not([data-view="weekly"]) .content-area { padding-bottom: env(safe-area-inset-bottom); }
+}
+
 /* ═══════════════════════════════════════════════════════════
    COLOR THEMES
 ════════════════════════════════════════════════════════════ */

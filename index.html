@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.25.1" />
+  <link rel="stylesheet" href="styles.css?v=11.26.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -142,14 +142,19 @@
 
 <!-- 手書きペンの色：選択中のスウォッチを再タップするとOSの自由色ピッカーが直接開く。
      ブラウザは非表示(display:none/pointer-events:none/画面外)の color 入力ではピッカーを
-     開けないため、開く瞬間にスウォッチの位置へ重ねて opacity:0 で表示する。 -->
+     開けないため、開く瞬間にスウォッチの位置へ重ねて opacity:0 で表示する。
+     v11.26.0：普段は画面外(-100px)に置く。以前は左上(0,0)に常駐していて、スマホ縦画面の
+     ☰ボタンの上に被ってタップを奪っていた。 -->
 <input type="color" id="hwColorInput" aria-label="ペンの色を選ぶ"
-       style="position:fixed;left:0;top:0;width:36px;height:36px;opacity:0;border:none;padding:0;background:none;z-index:6000;" />
+       style="position:fixed;left:-100px;top:-100px;width:36px;height:36px;opacity:0;border:none;padding:0;background:none;z-index:6000;" />
 
 <!-- ═══════════════════════════════════════════════════════════
      APP SHELL  (sidebar always-visible at 62 px)
 ════════════════════════════════════════════════════════════ -->
 <div class="app-shell">
+
+  <!-- v11.26.0：スマホ縦画面でサイドバーを左ドロワーにしたときの暗幕 -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
   <!-- ── SLIM DARK SIDEBAR ── -->
   <aside class="sidebar" id="sidebar" role="navigation" aria-label="メインナビゲーション">
@@ -289,6 +294,11 @@
 
     <!-- HEADER -->
     <header class="app-header" role="banner">
+      <!-- v11.26.0：スマホ縦画面だけ表示されるハンバーガー（左ドロワーを開く） -->
+      <button class="hamburger-btn" id="hamburgerBtn" type="button" aria-label="メニューを開く" aria-expanded="false" aria-controls="sidebar">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <span class="header-view-title" id="headerViewTitle"></span>
       <div class="header-logo" aria-label="WEEKY">W<em>E</em>EKY</div>
 
       <div class="week-nav" role="group" aria-label="週移動">
@@ -1007,6 +1017,8 @@
 
       </aside>
     </div><!-- /content-area -->
+    <!-- v11.26.0：スマホ縦画面の週案で曜日を切り替える下部ボタン（JSが月〜金を描画） -->
+    <nav class="day-tabs" id="dayTabs" aria-label="曜日の切り替え"></nav>
     <span id="autosaveStatus" hidden></span>
 
   </div><!-- /main-column -->
@@ -1490,6 +1502,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.25.1"></script>
+<script src="app.js?v=11.26.0"></script>
 </body>
 </html>
