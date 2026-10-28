@@ -520,7 +520,7 @@
 /* ── Constants ──────────────────────────────────────────── */
 /* Single source of truth for the version. Keep in sync with the ?v= query in
    index.html and CACHE_NAME in service-worker.js. Shown in 設定 → このアプリ. */
-const APP_VERSION = '11.26.0';
+const APP_VERSION = '11.27.0';
 const DAYS = ['月', '火', '水', '木', '金']; /* Mon–Fri only */
 const DEFAULT_PERIODS = 6;
 const ACTIVATION_CODES = ['SHUAN-2026'];
@@ -641,6 +641,7 @@ const state = {
     lockDigits: 4,           // 4 | 6
     lockTimeoutMin: 5,       // 無操作タイムアウト（分）1|3|5|10|30
     evalEnterDirection: 'down', // 成績入力：Enterキーで移動する方向 down|right（v11.25.0）
+    eventsView: 'list',         // 月行事の表示：list(縦並び)|calendar(カレンダー)（v11.27.0）
   },
   activeView: 'weekly',
   eventsYear: new Date().getFullYear(),
@@ -2048,7 +2049,7 @@ function openEventPopover(mk, day, anchor) {
       if (pop.hidden) return;
       // v11.23.0：写真ピッカー・全画面ビューア・確認ダイアログを開いている
       // 間は「外側をクリックした」とみなさない（ポップオーバーが勝手に閉じる）。
-      if (e.target.closest('#eventPopover') || e.target.closest('.grid-event-cell')) return;
+      if (e.target.closest('#eventPopover') || e.target.closest('.grid-event-cell') || e.target.closest('.events-cal-cell')) return;
       if (e.target.id === 'eventPhotoFileInput') return;
       if (e.target.closest('.photo-viewer') || e.target.closest('.evphoto-modal') || e.target.closest('#dialogBackdrop')) return;
       _saveEventPopover(); pop.hidden = true;
@@ -2091,7 +2092,7 @@ function _saveEventPopover() {
   if (v) state.events[mk][day] = v; else delete state.events[mk][day];
   save();
   renderWeekGrid();
-  if (state.activeView === 'events' && typeof renderEvents === 'function') renderEvents();
+  if (state.activeView === 'events') renderEventsGrid();   // v11.27.0：以前は未定義のrenderEvents()を見ていた。カレンダー表示の再描画に必要
 }
 
 /* 時限の表示名（morning=朝 / after=放課後 / それ以外=N時限） */
@@ -4836,7 +4837,13 @@ function renderEventsGrid() {
   const map = state.events[monthKey];
   const daysInMonth = new Date(y, m, 0).getDate();
 
+  // v11.27.0：表示モードのスイッチを同期し、カレンダー表示なら別の描画へ
+  const calMode = state.settings.eventsView === 'calendar';
+  const viewSw = document.getElementById('eventsViewSwitch');
+  if (viewSw) { viewSw.classList.toggle('on', calMode); viewSw.setAttribute('aria-checked', calMode ? 'true' : 'false'); }
+
   grid.innerHTML = '';
+  if (calMode) { renderEventsCalendar(grid, y, m, monthKey, map, daysInMonth); return; }
   grid.className = 'events-daylist';
 
   for (let day = 1; day <= daysInMonth; day++) {
@@ -4890,6 +4897,65 @@ function renderEventsGrid() {
     row.appendChild(photoBtn);
     grid.appendChild(row);
   }
+}
+
+/* ── 月行事：カレンダー表示（v11.27.0） ───────────────────────
+   縦並び(renderEventsGrid)と同じデータ state.events[YYYY-MM][日] を、月曜始まりの
+   カレンダー表で見せる。マスを押すと週案の行事セルと同じ編集ポップオーバー
+   （項目の編集＋写真）が開く。編集中に別の日を押したときは、先に保存してから開く。 */
+function renderEventsCalendar(grid, y, m, monthKey, map, daysInMonth) {
+  grid.className = 'events-cal';
+  ['月','火','水','木','金','土','日'].forEach((n, i) => {
+    const hd = document.createElement('div');
+    hd.className = 'events-cal-head' + (i === 5 ? ' events-cal-head--sat' : '') + (i === 6 ? ' events-cal-head--sun' : '');
+    hd.textContent = n;
+    grid.appendChild(hd);
+  });
+  const addBlank = () => { const b = document.createElement('div'); b.className = 'events-cal-blank'; grid.appendChild(b); };
+  const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;   // 月曜=0
+  for (let i = 0; i < lead; i++) addBlank();
+
+  const now = new Date();
+  const MAXL = 3;   // 1マスに出す項目数。あふれたら「＋N」
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dow = new Date(y, m - 1, day).getDay();
+    const isToday = (y === now.getFullYear() && m === now.getMonth() + 1 && day === now.getDate());
+    const items = String(map[day] || '').split(/[\s　]+/).filter(Boolean);
+    const nPhoto = eventPhotosOf(evDateKey(monthKey, day)).length;
+
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.dataset.day = String(day);
+    cell.className = 'events-cal-cell'
+      + (dow === 6 ? ' events-cal-cell--sat' : '')
+      + (dow === 0 ? ' events-cal-cell--sun' : '')
+      + (isToday ? ' events-cal-cell--today' : '')
+      + (items.length ? ' has-event' : '')
+      + (nPhoto ? ' has-photo' : '');
+    cell.setAttribute('aria-label',
+      `${m}月${day}日（${WEEKDAY_JP[dow]}）` + (items.length ? '：' + items.join('、') : '：行事なし') + (nPhoto ? `、写真${nPhoto}枚` : ''));
+    let inner = `<span class="ec-day">${day}</span>`;
+    inner += items.slice(0, MAXL).map(it => `<span class="ec-item">${escHtml(it)}</span>`).join('');
+    if (items.length > MAXL) inner += `<span class="ec-more">＋${items.length - MAXL}</span>`;
+    if (nPhoto) inner += `<span class="ev-photo-badge" title="写真${nPhoto}枚">${ICON_CAMERA_SM}${nPhoto}</span>`;
+    cell.innerHTML = inner;
+    cell.addEventListener('click', () => {
+      const pop = document.getElementById('eventPopover');
+      if (pop && !pop.hidden) _saveEventPopover();   // 編集中の日を先に保存（保存で表が描き直されるので、押したマスを引き直す）
+      openEventPopover(monthKey, day, grid.querySelector(`.events-cal-cell[data-day="${day}"]`) || cell);
+    });
+    grid.appendChild(cell);
+  }
+  const tail = (7 - ((lead + daysInMonth) % 7)) % 7;
+  for (let i = 0; i < tail; i++) addBlank();
+}
+
+function toggleEventsView() {
+  const pop = document.getElementById('eventPopover');
+  if (pop && !pop.hidden) { _saveEventPopover(); pop.hidden = true; }
+  state.settings.eventsView = state.settings.eventsView === 'calendar' ? 'list' : 'calendar';
+  save();
+  renderEventsGrid();
 }
 
 function navigateEventsMonth(delta) {
@@ -8480,6 +8546,14 @@ const CHANGELOG = [
       'iPadやパソコンの表示は今までと変わりません。',
     ],
   },
+  {
+    version: '11.27.0',
+    title: '月行事を「カレンダー表示」でも見られるように',
+    items: [
+      '月行事ページに「カレンダー表示」のスイッチを追加しました。オンにすると、普通のマンスリー手帳のように、月がカレンダーの表で表示されます。オフにすると、今までの縦並びに戻ります。',
+      'カレンダー表示で日付のマスをタップすると、その日の行事の編集と写真の追加ができます。選んだ表示は次に開いたときも覚えています。',
+    ],
+  },
 ];
 
 function compareVersions(a, b) {
@@ -9432,6 +9506,7 @@ function bindEvents() {
     b.addEventListener('click', () => showSettingsCategory(b.dataset.cat)));
 
   /* ── Events month nav ── */
+  q('eventsViewSwitch')?.addEventListener('click', toggleEventsView);
   q('eventsPrevMonthBtn')?.addEventListener('click', () => navigateEventsMonth(-1));
   q('eventsNextMonthBtn')?.addEventListener('click', () => navigateEventsMonth(1));
 

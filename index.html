@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=11.26.0" />
+  <link rel="stylesheet" href="styles.css?v=11.27.0" />
   <title>WEEKY</title>
 </head>
 <body>
@@ -440,6 +440,13 @@
               <button class="week-nav-btn" id="eventsNextMonthBtn" aria-label="次の月">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
               </button>
+              <!-- v11.27.0：縦並び⇄カレンダー表示の切替。手書きモードと同じ .ios-switch を使う -->
+              <div class="lm-hw-switch-wrap events-view-switch">
+                <span class="lm-hw-switch-text">カレンダー表示</span>
+                <button class="ios-switch" id="eventsViewSwitch" type="button" role="switch" aria-checked="false" aria-label="カレンダー表示">
+                  <span class="ios-switch-knob"></span>
+                </button>
+              </div>
             </div>
             <div class="events-grid" id="eventsGrid"></div>
           </div>
@@ -1502,6 +1509,6 @@
 <script src="vendor/fontkit.umd.min.js"></script>
 <script async src="https://tally.so/widgets/embed.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="app.js?v=11.26.0"></script>
+<script src="app.js?v=11.27.0"></script>
 </body>
 </html>

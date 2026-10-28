@@ -4945,6 +4945,63 @@ img { max-width: 100%; display: block; }
   text-align: center;
 }
 
+/* ── v11.27.0：月行事のカレンダー表示 ───────────────────────
+   縦並びと同じデータを、月曜始まりのマス目で見せる。線は gap + 背景色で引く
+   （セルごとに border を付けると端で二重線になるため）。スイッチは手書きモードと
+   同じ .ios-switch を使う。 */
+.events-view-switch { margin-left: auto; }
+.events-cal {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  width: 100%;
+  margin: 0 auto;
+}
+.events-cal-head {
+  padding: 8px 0; text-align: center;
+  font-size: 12px; font-weight: 700; color: var(--gray-500);
+  background: var(--gray-50);
+}
+.events-cal-head--sat { color: #2563EB; }
+.events-cal-head--sun { color: #DC2626; }
+.events-cal-blank { background: var(--gray-50); min-height: 104px; }
+.events-cal-cell {
+  position: relative;
+  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+  min-height: 104px; padding: 4px 5px 6px;
+  background: var(--bg); text-align: left; overflow: hidden;
+  transition: background var(--fast);
+}
+.events-cal-cell--sat { background: #EFF6FF; }
+.events-cal-cell--sun { background: #FEF2F2; }
+.events-cal-cell--today { background: var(--brand-light); }
+@media (hover: hover) { .events-cal-cell:hover { filter: brightness(.97); } }
+.events-cal-cell:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.ec-day { font-size: 13px; font-weight: 700; color: var(--gray-800); line-height: 1.2; }
+.events-cal-cell--sat .ec-day { color: #2563EB; }
+.events-cal-cell--sun .ec-day { color: #DC2626; }
+.events-cal-cell--today .ec-day { color: var(--brand); }
+.ec-item {
+  display: block; padding: 1px 4px; border-radius: 4px;
+  font-size: 11px; line-height: 1.3;
+  background: color-mix(in srgb, var(--brand) 10%, var(--bg));
+  color: var(--brand-dark);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ec-more { font-size: 10px; color: var(--gray-500); text-align: right; line-height: 1.2; }
+@media (max-width: 600px) {
+  .events-cal-cell, .events-cal-blank { min-height: 76px; }
+  .events-cal-cell { padding: 3px 2px 4px; gap: 1px; }
+  .ec-day { font-size: 12px; padding-left: 2px; }
+  .ec-item { font-size: 9.5px; padding: 0 2px; }
+  .events-cal .ev-photo-badge { top: 1px; right: 1px; }
+  .events-view-switch .lm-hw-switch-text { font-size: 12px; }
+}
+
 /* ── Settings row with inline buttons ── */
 .settings-row .btn-secondary + .btn-ghost { margin-left: 8px; }
 
